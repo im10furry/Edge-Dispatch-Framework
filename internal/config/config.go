@@ -36,6 +36,16 @@ type GatewayConfig struct {
 	Quic            QuicConfig
 }
 
+// SmallBandwidthConfig holds small bandwidth optimization configuration (v0.6+).
+type SmallBandwidthConfig struct {
+	Enabled                 bool
+	SmallBandwidthThreshold int64
+	P2PEnabled              bool
+	PrefetchEnabled         bool
+	PrefetchWorkers         int
+	PrefetchBandwidthLimit  int
+}
+
 // ControlPlaneConfig holds control plane specific configuration.
 type ControlPlaneConfig struct {
 	ListenAddr      string
@@ -57,6 +67,8 @@ type ControlPlaneConfig struct {
 	Streaming       *StreamingConfig
 	// Admin API configuration (v0.5)
 	Admin AdminAPIConfig
+	// Small bandwidth optimization (v0.6+)
+	SmallBandwidthOptimization SmallBandwidthConfig
 }
 
 // EdgeAgentConfig holds edge agent specific configuration.
@@ -79,6 +91,17 @@ type EdgeAgentConfig struct {
 	Streaming        *StreamingConfig
 	// HTTP/3 QUIC support (v0.6)
 	Quic             QuicConfig
+	// Small bandwidth optimization (v0.6+)
+	MaxUplinkMbps            int64
+	P2PEnabled               bool
+	P2PDiscoveryIntervalSec  int
+	P2PMaxPeers              int
+	PrefetchEnabled          bool
+	PrefetchWorkers          int
+	PrefetchBandwidthLimit   int
+	PrefetchNightModeStart   int
+	PrefetchNightModeEnd     int
+	OriginFetchBWLimit       int
 }
 
 // OriginConfig holds origin server configuration.
@@ -159,6 +182,14 @@ func LoadControlPlane() *ControlPlaneConfig {
 			HotContentAwareWeight:  floatEnv("CP_CI_HOT_CONTENT_WEIGHT", 25.0),
 		},
 		Streaming: DefaultStreamingConfig(),
+		SmallBandwidthOptimization: SmallBandwidthConfig{
+			Enabled:                 boolEnv("CP_SB_OPT_ENABLED", true),
+			SmallBandwidthThreshold: int64(intEnv("CP_SB_THRESHOLD", 50)),
+			P2PEnabled:              boolEnv("CP_SB_P2P_ENABLED", true),
+			PrefetchEnabled:         boolEnv("CP_SB_PREFETCH_ENABLED", true),
+			PrefetchWorkers:         intEnv("CP_SB_PREFETCH_WORKERS", 2),
+			PrefetchBandwidthLimit:  intEnv("CP_SB_PREFETCH_BW_LIMIT", 20),
+		},
 		Admin: AdminAPIConfig{
 			Enabled:           boolEnv("CP_ADMIN_ENABLED", false),
 			AdminSecretKey:    getEnv("CP_ADMIN_SECRET_KEY", ""),
@@ -205,6 +236,17 @@ func LoadEdgeAgent() *EdgeAgentConfig {
 			Enabled:    boolEnv("EA_QUIC_ENABLED", false),
 			ListenAddr: getEnv("EA_QUIC_LISTEN_ADDR", ":9443"),
 		},
+		// Small bandwidth optimization (v0.6+)
+		MaxUplinkMbps:            int64(intEnv("EA_MAX_UPLINK_MBPS", 0)),
+		P2PEnabled:               boolEnv("EA_P2P_ENABLED", false),
+		P2PDiscoveryIntervalSec:  intEnv("EA_P2P_DISCOVERY_INTERVAL", 60),
+		P2PMaxPeers:              intEnv("EA_P2P_MAX_PEERS", 10),
+		PrefetchEnabled:          boolEnv("EA_PREFETCH_ENABLED", false),
+		PrefetchWorkers:          intEnv("EA_PREFETCH_WORKERS", 2),
+		PrefetchBandwidthLimit:   intEnv("EA_PREFETCH_BANDWIDTH_LIMIT", 20),
+		PrefetchNightModeStart:   intEnv("EA_PREFETCH_NIGHT_MODE_START", 1),
+		PrefetchNightModeEnd:     intEnv("EA_PREFETCH_NIGHT_MODE_END", 7),
+		OriginFetchBWLimit:       intEnv("EA_ORIGIN_FETCH_BW_LIMIT", 0),
 	}
 	cfg.warnDefaults()
 	return cfg

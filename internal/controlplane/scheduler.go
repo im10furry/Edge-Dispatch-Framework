@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -139,6 +140,14 @@ func (s *Scheduler) Resolve(ctx context.Context, req models.DispatchRequest) (*m
 		}
 	}
 
+	if s.cfg.SmallBandwidthOptimization.Enabled {
+		filtered = s.filterForSmallBandwidth(filtered, rKey)
+		if len(filtered) == 0 {
+			slog.Warn("no edge nodes available after small bandwidth filter, degrading to origin")
+			return s.NoOriginFallback(req), nil
+		}
+	}
+
 	maxCandidates := s.cfg.MaxCandidates
 	h := &scoredHeap{max: maxCandidates}
 	for _, n := range filtered {
@@ -246,9 +255,46 @@ func (s *Scheduler) scoreKeyFast(node *models.Node, client models.ClientInfo, re
 		}
 	}
 
+	// Small bandwidth optimization: bandwidth-aware scoring (v0.6+)
+	score = s.scoreBandwidth(node, score, hotNodes, bloomNodes)
+
 	if score < 0 {
 		return 0
 	}
+	return score
+}
+
+func (s *Scheduler) scoreBandwidth(node *models.Node, score float64, hotNodes, bloomNodes map[string]bool) float64 {
+	if s.cfg == nil {
+		return score
+	}
+	sb := s.cfg.SmallBandwidthOptimization
+	if !sb.Enabled {
+		return score
+	}
+
+	if node.Capabilities.MaxUplinkMbps <= 0 {
+		return score
+	}
+
+	bandwidthScore := float64(node.Capabilities.MaxUplinkMbps) / 100.0 * 20.0
+	if bandwidthScore > 20.0 {
+		bandwidthScore = 20.0
+	}
+	score += bandwidthScore
+
+	if node.Capabilities.CurrentEgressMbps > float64(node.Capabilities.MaxUplinkMbps)*0.8 {
+		score -= 15.0
+	}
+
+	if node.Capabilities.MaxUplinkMbps < sb.SmallBandwidthThreshold {
+		if hotNodes != nil && hotNodes[node.NodeID] {
+			score += 30.0
+		} else if bloomNodes != nil && bloomNodes[node.NodeID] {
+			score += 30.0
+		}
+	}
+
 	return score
 }
 
@@ -284,19 +330,54 @@ func (s *Scheduler) filter(ctx context.Context, nodes []*models.Node) []*models.
 	return result
 }
 
-func sanitizeResourceKey(key string) string {
-	if !strings.Contains(key, "..") && !strings.Contains(key, "\\") {
-		return strings.TrimSpace(key)
+func (s *Scheduler) filterForSmallBandwidth(nodes []*models.Node, resourceKey string) []*models.Node {
+	sb := s.cfg.SmallBandwidthOptimization
+	if !sb.Enabled {
+		return nodes
 	}
+	threshold := sb.SmallBandwidthThreshold
+
+	filtered := make([]*models.Node, 0, len(nodes))
+	for _, n := range nodes {
+		if n.Capabilities.MaxUplinkMbps > 0 && n.Capabilities.MaxUplinkMbps < threshold {
+			hasContent := false
+			if s.contentIndex != nil {
+				isHot, likelyCached := s.contentIndex.IsCached(n.NodeID, resourceKey)
+				hasContent = isHot || likelyCached
+			}
+			e := n.Capabilities.CurrentEgressMbps
+			cap := float64(n.Capabilities.MaxUplinkMbps)
+			if cap > 0 && e/cap < 0.7 && hasContent {
+				filtered = append(filtered, n)
+			}
+			continue
+		}
+		filtered = append(filtered, n)
+	}
+	return filtered
+}
+
+func sanitizeResourceKey(key string) string {
 	key = strings.TrimSpace(key)
-	key = strings.ReplaceAll(key, "\\", "/")
+	if key == "" || strings.ContainsAny(key, "\x00\r\n\\") {
+		return ""
+	}
+	if unescaped, err := url.PathUnescape(key); err == nil {
+		key = unescaped
+	}
+	key = strings.TrimPrefix(key, "/")
+
+	parts := strings.Split(key, "/")
 	for _, p := range strings.Split(key, "/") {
 		p = strings.TrimSpace(p)
-		if p == "." || p == ".." {
+		if p == "" || p == "." || p == ".." {
 			return ""
 		}
 	}
-	return key
+	for i, p := range parts {
+		parts[i] = strings.TrimSpace(p)
+	}
+	return strings.Join(parts, "/")
 }
 
 func (s *Scheduler) NoOriginFallback(req models.DispatchRequest) *models.DispatchResponse {
