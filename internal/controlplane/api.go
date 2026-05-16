@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -189,6 +191,14 @@ func NewAPI(registry *Registry, heartbeat *Heartbeat, scheduler *Scheduler, cfg 
 				r.Post("/nodes/{nodeID}:disable", api.handleAdminDisableNode)
 				r.Post("/nodes/{nodeID}:enable", api.handleAdminEnableNode)
 				r.Post("/nodes/{nodeID}:revoke", api.handleAdminRevokeNode)
+				// Global config management (v0.6+)
+				r.Get("/config", api.scheduler.handleAdminGetConfig)
+				r.Put("/config", api.scheduler.handleAdminUpdateConfig)
+				r.Post("/config/apply", api.scheduler.handleAdminApplyConfig)
+				// P2P topology (v0.6+)
+				r.Get("/p2p/topology", api.scheduler.handleAdminP2PTopology)
+				// Dashboard (v0.6+)
+				r.Get("/dashboard", api.scheduler.handleAdminDashboard)
 			})
 		}
 	}
@@ -231,6 +241,37 @@ func (a *API) writeError(w http.ResponseWriter, status int, code, message string
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	w.Write(b)
+}
+
+func (a *API) decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	if ct := r.Header.Get("Content-Type"); ct != "" {
+		mediaType, _, err := mime.ParseMediaType(ct)
+		if err != nil || mediaType != "application/json" {
+			a.writeError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Content-Type must be application/json")
+			return false
+		}
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodySize)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(dst); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			a.writeError(w, http.StatusRequestEntityTooLarge, "TOO_LARGE", "request body exceeds 32KB limit")
+			return false
+		}
+		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+		return false
+	}
+
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "request body must contain a single JSON value")
+		return false
+	}
+	return true
 }
 
 func clientIP(r *http.Request) string {
@@ -281,19 +322,9 @@ func cachedClientIP(r *http.Request) string {
 
 func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
 	a.metrics.registerTotal.Inc()
-	if ct := r.Header.Get("Content-Type"); ct != "" && !strings.HasPrefix(ct, "application/json") {
-		a.writeError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Content-Type must be application/json")
-		return
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodySize)
 
 	var req models.RegisterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err.Error() == "http: request body too large" {
-			a.writeError(w, http.StatusRequestEntityTooLarge, "TOO_LARGE", "request body exceeds 32KB limit")
-			return
-		}
-		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	if !a.decodeJSON(w, r, &req) {
 		return
 	}
 
@@ -316,19 +347,8 @@ func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
-	if ct := r.Header.Get("Content-Type"); ct != "" && !strings.HasPrefix(ct, "application/json") {
-		a.writeError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Content-Type must be application/json")
-		return
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodySize)
-
 	var req models.HeartbeatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if strings.Contains(err.Error(), "request body too large") {
-			a.writeError(w, http.StatusRequestEntityTooLarge, "TOO_LARGE", "request body exceeds 32KB limit")
-			return
-		}
-		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	if !a.decodeJSON(w, r, &req) {
 		return
 	}
 
@@ -387,19 +407,9 @@ func (a *API) handleRevokeNode(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) handleDispatch(w http.ResponseWriter, r *http.Request) {
 	a.metrics.dispatchTotal.Inc()
-	if ct := r.Header.Get("Content-Type"); ct != "" && !strings.HasPrefix(ct, "application/json") {
-		a.writeError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Content-Type must be application/json")
-		return
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodySize)
 
 	var req models.DispatchRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if strings.Contains(err.Error(), "request body too large") {
-			a.writeError(w, http.StatusRequestEntityTooLarge, "TOO_LARGE", "request body exceeds 32KB limit")
-			return
-		}
-		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+	if !a.decodeJSON(w, r, &req) {
 		return
 	}
 
@@ -436,6 +446,10 @@ func (a *API) handleDispatch(w http.ResponseWriter, r *http.Request) {
 func (a *API) handleObjectIngress(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "*")
 	key = sanitizeResourceKey(key)
+	if key == "" {
+		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid resource key")
+		return
+	}
 
 	req := models.DispatchRequest{
 		Client: models.ClientInfo{
@@ -455,11 +469,19 @@ func (a *API) handleObjectIngress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	top := resp.Candidates[0]
-	redirectURL := fmt.Sprintf("%s/obj/%s", top.Endpoint, key)
+	redirectURL := fmt.Sprintf("%s/obj/%s", strings.TrimRight(top.Endpoint, "/"), escapeResourcePath(key))
 	if resp.Token.Value != "" {
 		redirectURL += "?token=" + url.QueryEscape(resp.Token.Value)
 	}
 	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+func escapeResourcePath(key string) string {
+	parts := strings.Split(key, "/")
+	for i, part := range parts {
+		parts[i] = url.PathEscape(part)
+	}
+	return strings.Join(parts, "/")
 }
 
 func (a *API) handleHealthz(w http.ResponseWriter, r *http.Request) {
