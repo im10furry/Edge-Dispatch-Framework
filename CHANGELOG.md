@@ -38,6 +38,28 @@
 
 ## [Unreleased]
 
+### Review and hardening
+- Hardened Control Plane JSON request parsing with media-type parsing, unknown-field rejection, multi-value rejection, and exact oversized body handling.
+- Fixed object key sanitization and redirect path escaping to reject traversal-style keys before dispatch.
+- Fixed gateway reverse proxy token forwarding so gateway-selected public and tunnel edge nodes receive dispatch access tokens.
+- Removed shared reverse-proxy Director mutation in the gateway request path.
+- Fixed DNS adapter Control Plane authentication and split compose defaults for gateway/DNS API tokens.
+- Fixed edge cache overwrite accounting, edge metrics double counting, HEAD responses, bounded streaming reads, and origin Range streaming.
+- Hardened admin/session auth with random refresh tokens, JWT header validation, bcrypt error handling, and idempotent shutdown helpers.
+- Fixed IPv6 endpoint formatting and QUIC test/listener behavior with HTTP/3 ALPN configuration.
+
+### 新增 (v0.6 — 小带宽环境优化)
+- **带宽感知调度**：`scoreBandwidth()` 在调度评分中引入节点上行带宽容量、实时流量负载、小带宽节点缓存内容奖励
+- **小带宽节点过滤**：`filterForSmallBandwidth()` 排除无缓存内容的小带宽节点，避免无效调度
+- **带宽限制器**：`BandwidthLimiter` 基于 token bucket 的流量整形，支持动态调整带宽限制
+- **P2P 互助网络**：`P2PFetcher` 节点间内容互助获取，P2P 优先回源策略，`/internal/p2p/obj/{key}` 端点
+- **智能预拉取**：`SmartPrefetchManager` 支持夜间/白天双模式、优先级队列、缓存命中检查
+- **本地配置 Web UI**：`internal/edgeagent/localconfig` 节点本地可视化配置界面，支持 4 步配置向导、连接测试、磁盘检查、热重载
+- **全局配置 API**：`GET/PUT /internal/admin/v1/config` 集中式小带宽/P2P/预拉取配置管理
+- **P2P 拓扑 API**：`GET /internal/admin/v1/p2p/topology` P2P 网络拓扑数据
+- **Dashboard API**：`GET /internal/admin/v1/dashboard` 节点在线/离线统计
+- **配置扩展**：`Capabilities` 新增 `SupportsP2P`/`CurrentEgressMbps`/`CurrentIngressMbps`；`SmallBandwidthConfig` 统一管理小带宽优化配置
+
 ### 计划
 - HTTP/3 QUIC 支持
 - Helm Chart 部署

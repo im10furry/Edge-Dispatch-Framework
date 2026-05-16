@@ -18,7 +18,8 @@
 | **Content-Aware Scheduling** | Bloom Filter + hot content exact indexing, hit-rate-first routing | ✅ |
 | **Live Stream Segment Delivery** | HLS/DASH sliding-window cache + prefetch | ✅ |
 | **Web Admin Console** | Visual management panel for nodes, dispatch, and data monitoring | [Webmanager](https://github.com/im10furry/Edge-Dispatch-Framework-Webmanager) |
-| **HTTP/3 / QUIC** | Next-gen UDP-based transport | ✅ |
+| **HTTP/3 / QUIC** | Next-gen UDP-based transport | ✅ v0.6 |
+| **Small Bandwidth Optimization** | Bandwidth-aware scheduling, P2P peer fetch, smart prefetch, rate limiting, local config UI | ✅ v0.6 |
 
 ## Architecture Overview
 
@@ -195,7 +196,8 @@ Create a `.env` file on the Control Plane server:
 # .env (place in the same directory as the Control Plane compose file)
 CP_TOKEN_SECRET=<generated-random-secret>
 GW_AUTH_TOKEN=<generated-random-secret>
-GW_CP_TOKEN=<generated-random-secret>
+GW_CP_TOKEN=<same-value-as-CP_TOKEN_SECRET-or-dedicated-api-token>
+DNS_TOKEN_SECRET=<same-value-as-CP_TOKEN_SECRET-or-dedicated-api-token>
 PG_PASSWORD=<database-password>
 
 # Required if Admin API is enabled
@@ -232,6 +234,8 @@ cd Edge-Dispatch-Framework
 cat > .env << 'EOF'
 CP_TOKEN_SECRET=<your-random-secret>
 GW_AUTH_TOKEN=<your-random-token>
+GW_CP_TOKEN=<same-value-as-CP_TOKEN_SECRET-or-dedicated-api-token>
+DNS_TOKEN_SECRET=<same-value-as-CP_TOKEN_SECRET-or-dedicated-api-token>
 PG_PASSWORD=<your-pg-password>
 EOF
 
@@ -557,6 +561,9 @@ make integration-test
 
 # Code linting
 make lint
+
+# Optional HTTP/3 / QUIC verification
+make test-quic
 ```
 
 ### Stress Testing
