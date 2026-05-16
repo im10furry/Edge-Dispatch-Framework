@@ -102,6 +102,9 @@ type EdgeAgentConfig struct {
 	PrefetchNightModeStart   int
 	PrefetchNightModeEnd     int
 	OriginFetchBWLimit       int
+	PublicHost               string
+	Region                   string
+	ISP                      string
 }
 
 // OriginConfig holds origin server configuration.
@@ -247,6 +250,9 @@ func LoadEdgeAgent() *EdgeAgentConfig {
 		PrefetchNightModeStart:   intEnv("EA_PREFETCH_NIGHT_MODE_START", 1),
 		PrefetchNightModeEnd:     intEnv("EA_PREFETCH_NIGHT_MODE_END", 7),
 		OriginFetchBWLimit:       intEnv("EA_ORIGIN_FETCH_BW_LIMIT", 0),
+		PublicHost:               getEnv("EA_PUBLIC_HOST", ""),
+		Region:                   getEnv("EA_REGION", ""),
+		ISP:                      getEnv("EA_ISP", ""),
 	}
 	cfg.warnDefaults()
 	return cfg

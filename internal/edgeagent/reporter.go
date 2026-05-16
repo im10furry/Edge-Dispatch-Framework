@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -173,11 +175,24 @@ func (r *Reporter) ReportOnce(ctx context.Context) error {
 func (r *Reporter) Register(ctx context.Context) error {
 	caps := r.collectCapabilities()
 
+	host := r.cfg.PublicHost
+	if host == "" {
+		host = r.detectPublicIP()
+	}
+	region := r.cfg.Region
+	if region == "" {
+		region = "unknown"
+	}
+	isp := r.cfg.ISP
+	if isp == "" {
+		isp = "unknown"
+	}
+
 	regReq := models.RegisterRequest{
 		NodeName:   "edge-agent",
-		Endpoints:  []models.Endpoint{{Scheme: "http", Host: "localhost", Port: parsePort(r.cfg.ListenAddr)}},
-		Region:     "unknown",
-		ISP:        "unknown",
+		Endpoints:  []models.Endpoint{{Scheme: "http", Host: host, Port: parsePort(r.cfg.ListenAddr)}},
+		Region:     region,
+		ISP:        isp,
 		Capabilities: caps,
 	}
 
@@ -219,11 +234,16 @@ func (r *Reporter) Register(ctx context.Context) error {
 }
 
 func (r *Reporter) collectCapabilities() models.Capabilities {
+	maxBW := r.cfg.MaxUplinkMbps
+	if maxBW <= 0 {
+		maxBW = 100
+	}
 	return models.Capabilities{
 		InboundReachable: true,
 		CacheDiskGB:      r.cfg.CacheMaxGB,
-		MaxUplinkMbps:    1000,
+		MaxUplinkMbps:    maxBW,
 		SupportsHTTPS:    false,
+		SupportsP2P:      r.cfg.P2PEnabled,
 	}
 }
 
@@ -266,4 +286,31 @@ func parsePort(addr string) int {
 		return 9090
 	}
 	return port
+}
+
+func (r *Reporter) detectPublicIP() string {
+	services := []string{
+		"https://api.ipify.org",
+		"https://icanhazip.com",
+		"https://ifconfig.me/ip",
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	for _, svc := range services {
+		resp, err := client.Get(svc)
+		if err != nil {
+			continue
+		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 64))
+		resp.Body.Close()
+		if err != nil {
+			continue
+		}
+		ip := strings.TrimSpace(string(body))
+		if net.ParseIP(ip) != nil {
+			slog.Info("detected public IP", "ip", ip, "service", svc)
+			return ip
+		}
+	}
+	slog.Warn("could not detect public IP, using localhost")
+	return "localhost"
 }
