@@ -77,12 +77,18 @@ type Server struct {
 }
 
 type promMetrics struct {
-	requestsTotal   *metrics.CounterFn
-	cacheHitsTotal  *metrics.CounterFn
+	requestsTotal    *metrics.CounterFn
+	cacheHitsTotal   *metrics.CounterFn
 	cacheMissesTotal *metrics.CounterFn
-	bytesSentTotal  *metrics.CounterFn
-	errorsTotal     *metrics.CounterFn
-	cacheSizeGauge  *metrics.GaugeFn
+	bytesSentTotal   *metrics.CounterFn
+	errorsTotal      *metrics.CounterFn
+	cacheSizeGauge   *metrics.GaugeFn
+	mu               sync.Mutex
+	lastRequests     int64
+	lastCacheHits    int64
+	lastCacheMisses  int64
+	lastBytesSent    int64
+	lastErrors       int64
 }
 
 func NewServer(cache *Cache, fetcher *Fetcher, cfg *config.EdgeAgentConfig) *Server {
@@ -111,14 +117,15 @@ func (s *Server) WithStreaming(handler *streaming.Handler) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/obj/", s.handleObject)
+	mux.HandleFunc("/internal/p2p/obj/", s.handleP2PFetch)
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	return withRecovery(withCommonHeaders(withGzipCompression(mux)))
 }
 
 var commonRespHeaders = map[string]string{
-	"Connection":        "keep-alive",
-	"Keep-Alive":        "timeout=120, max=1000",
+	"Connection":             "keep-alive",
+	"Keep-Alive":             "timeout=120, max=1000",
 	"X-Content-Type-Options": "nosniff",
 }
 
@@ -207,8 +214,8 @@ func (s *Server) Start(ctx context.Context) error {
 			return fmt.Errorf("load tls cert: %w", err)
 		}
 		tlsCfg := &tls.Config{
-			Certificates:     []tls.Certificate{cert},
-			MinVersion:       tls.VersionTLS12,
+			Certificates:           []tls.Certificate{cert},
+			MinVersion:             tls.VersionTLS12,
 			SessionTicketsDisabled: false,
 		}
 		s.httpSrv.TLSConfig = tlsCfg
@@ -364,7 +371,10 @@ func (s *Server) handleObject(w http.ResponseWriter, r *http.Request) {
 			s.serveFromFetchResult(w, r, fr)
 			s.metrics.bytesSent.Add(fr.ContentLength)
 		} else {
-			n, _ := io.Copy(w, fr.Body)
+			n, err := io.Copy(w, fr.Body)
+			if err != nil {
+				slog.Debug("write fetched body failed", "key", key, "err", err)
+			}
 			s.metrics.bytesSent.Add(n)
 		}
 		return
@@ -380,7 +390,13 @@ func (s *Server) handleObject(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Length", strconv.FormatInt(contentLen, 10))
 		w.WriteHeader(http.StatusOK)
-		n, _ := io.Copy(w, reader)
+		if r.Method == http.MethodHead {
+			return
+		}
+		n, err := io.Copy(w, reader)
+		if err != nil {
+			slog.Debug("write cached body failed", "key", key, "err", err)
+		}
 		s.metrics.bytesSent.Add(n)
 	}
 }
@@ -398,7 +414,12 @@ func (s *Server) serveFromFetchResult(w http.ResponseWriter, r *http.Request, fr
 		w.Header().Set("Content-Length", strconv.FormatInt(fr.ContentLength, 10))
 	}
 	w.WriteHeader(fr.StatusCode)
-	io.Copy(w, fr.Body)
+	if r.Method == http.MethodHead {
+		return
+	}
+	if _, err := io.Copy(w, fr.Body); err != nil {
+		slog.Debug("write fetched body failed", "err", err)
+	}
 }
 
 func (s *Server) serveRangeFromCache(w http.ResponseWriter, r *http.Request, reader io.ReadCloser, contentLen int64, key string) {
@@ -407,7 +428,13 @@ func (s *Server) serveRangeFromCache(w http.ResponseWriter, r *http.Request, rea
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Length", strconv.FormatInt(contentLen, 10))
 		w.WriteHeader(http.StatusOK)
-		n, _ := io.Copy(w, reader)
+		if r.Method == http.MethodHead {
+			return
+		}
+		n, err := io.Copy(w, reader)
+		if err != nil {
+			slog.Debug("write cached fallback body failed", "key", key, "err", err)
+		}
 		s.metrics.bytesSent.Add(n)
 		return
 	}
@@ -427,7 +454,12 @@ func (s *Server) serveRangeFromCache(w http.ResponseWriter, r *http.Request, rea
 	w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, contentLen))
 	w.Header().Set("Content-Length", strconv.FormatInt(rangeLen, 10))
 	w.WriteHeader(http.StatusPartialContent)
-	io.CopyN(w, reader, rangeLen)
+	if r.Method == http.MethodHead {
+		return
+	}
+	if _, err := io.CopyN(w, reader, rangeLen); err != nil {
+		slog.Debug("write cached range body failed", "key", key, "err", err)
+	}
 	s.metrics.bytesSent.Add(rangeLen)
 }
 
@@ -445,11 +477,13 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	cacheStats := s.cache.Stats()
 
 	if s.promMetrics != nil {
-		s.promMetrics.requestsTotal.Add(float64(s.metrics.requests.Load()))
-		s.promMetrics.cacheHitsTotal.Add(float64(s.metrics.cacheHits.Load()))
-		s.promMetrics.cacheMissesTotal.Add(float64(s.metrics.cacheMisses.Load()))
-		s.promMetrics.bytesSentTotal.Add(float64(s.metrics.bytesSent.Load()))
-		s.promMetrics.errorsTotal.Add(float64(s.metrics.errors.Load()))
+		s.promMetrics.addDeltas(
+			s.metrics.requests.Load(),
+			s.metrics.cacheHits.Load(),
+			s.metrics.cacheMisses.Load(),
+			s.metrics.bytesSent.Load(),
+			s.metrics.errors.Load(),
+		)
 		s.promMetrics.cacheSizeGauge.Set(float64(cacheStats.Size))
 	}
 
@@ -478,7 +512,34 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	metrics.Handler().ServeHTTP(w, r)
 }
 
-func (s *Server) RequestCount() int64  { return s.metrics.requests.Load() }
+func (m *promMetrics) addDeltas(requests, cacheHits, cacheMisses, bytesSent, errors int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if delta := requests - m.lastRequests; delta > 0 {
+		m.requestsTotal.Add(float64(delta))
+	}
+	if delta := cacheHits - m.lastCacheHits; delta > 0 {
+		m.cacheHitsTotal.Add(float64(delta))
+	}
+	if delta := cacheMisses - m.lastCacheMisses; delta > 0 {
+		m.cacheMissesTotal.Add(float64(delta))
+	}
+	if delta := bytesSent - m.lastBytesSent; delta > 0 {
+		m.bytesSentTotal.Add(float64(delta))
+	}
+	if delta := errors - m.lastErrors; delta > 0 {
+		m.errorsTotal.Add(float64(delta))
+	}
+
+	m.lastRequests = requests
+	m.lastCacheHits = cacheHits
+	m.lastCacheMisses = cacheMisses
+	m.lastBytesSent = bytesSent
+	m.lastErrors = errors
+}
+
+func (s *Server) RequestCount() int64 { return s.metrics.requests.Load() }
 func (s *Server) CacheHits() int64    { return s.metrics.cacheHits.Load() }
 func (s *Server) CacheMisses() int64  { return s.metrics.cacheMisses.Load() }
 func (s *Server) BytesSent() int64    { return s.metrics.bytesSent.Load() }
@@ -514,6 +575,34 @@ func (s *Server) GetMetricsDelta() MetricsSnapshot {
 
 	s.lastSnapshot = current
 	return delta
+}
+
+func (s *Server) handleP2PFetch(w http.ResponseWriter, r *http.Request) {
+	key := strings.TrimPrefix(r.URL.Path, "/internal/p2p/obj/")
+	key = strings.TrimSpace(key)
+	if key == "" || key == "." || strings.Contains(key, "..") {
+		http.Error(w, "invalid key", http.StatusBadRequest)
+		return
+	}
+
+	reader, contentLen, err := s.cache.Get(r.Context(), key)
+	if err != nil {
+		http.Error(w, "content not found", http.StatusNotFound)
+		return
+	}
+	defer reader.Close()
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", strconv.FormatInt(contentLen, 10))
+	w.Header().Set("X-Cache-Status", "HIT")
+	w.WriteHeader(http.StatusOK)
+
+	if r.Method == http.MethodHead {
+		return
+	}
+	if _, err := io.Copy(w, reader); err != nil {
+		slog.Debug("p2p write body failed", "key", key, "err", err)
+	}
 }
 
 // handleStreamingRequest processes HLS/DASH chunk requests through the

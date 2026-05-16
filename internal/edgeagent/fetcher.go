@@ -27,11 +27,15 @@ type FetchResult struct {
 }
 
 type Fetcher struct {
-	originURL string
-	client    *http.Client
-	nodeToken string
-	cb        *circuitBreaker
-	deduper   *deduper
+	originURL     string
+	client        *http.Client
+	nodeToken     string
+	cb            *circuitBreaker
+	deduper       *deduper
+	p2pFetcher    *P2PFetcher
+	bwLimiter     *BandwidthLimiter
+	useP2P        bool
+	smallBandwidth bool
 }
 
 func NewFetcher(cfg *config.EdgeAgentConfig) *Fetcher {
@@ -45,13 +49,13 @@ func NewFetcher(cfg *config.EdgeAgentConfig) *Fetcher {
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout:  15 * time.Second,
-		ExpectContinueTimeout:  1 * time.Second,
-		DisableCompression:     false,
-		ForceAttemptHTTP2:      true,
+		ResponseHeaderTimeout: 15 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		DisableCompression:    false,
+		ForceAttemptHTTP2:     true,
 	}
 
-	return &Fetcher{
+	f := &Fetcher{
 		originURL: cfg.OriginURL,
 		nodeToken: cfg.NodeToken,
 		client: &http.Client{
@@ -61,6 +65,19 @@ func NewFetcher(cfg *config.EdgeAgentConfig) *Fetcher {
 		cb:      newCircuitBreaker(5, 30*time.Second),
 		deduper: newDeduper(),
 	}
+
+	if cfg.P2PEnabled {
+		f.p2pFetcher = NewP2PFetcher()
+		f.useP2P = true
+	}
+
+	if cfg.MaxUplinkMbps > 0 && cfg.MaxUplinkMbps < 50 {
+		f.smallBandwidth = true
+		f.bwLimiter = NewBandwidthLimiter(int(float64(cfg.MaxUplinkMbps) * 0.8))
+		slog.Info("small bandwidth fetcher mode enabled", "uplink_mbps", cfg.MaxUplinkMbps)
+	}
+
+	return f
 }
 
 func (f *Fetcher) Fetch(ctx context.Context, key string, ranges ...string) (*FetchResult, error) {
@@ -70,6 +87,27 @@ func (f *Fetcher) Fetch(ctx context.Context, key string, ranges ...string) (*Fet
 func (f *Fetcher) FetchWithRange(ctx context.Context, key string, rangeHeader string) (*FetchResult, error) {
 	return f.doFetch(ctx, key, rangeHeader)
 }
+
+func (f *Fetcher) FetchWithStrategy(ctx context.Context, key string, rangeHeader string) (*FetchResult, error) {
+	if f.useP2P && f.p2pFetcher != nil {
+		if f.p2pFetcher.HasPeerWithContent(key) {
+			body, size, err := f.p2pFetcher.FetchFromPeer(ctx, key)
+			if err == nil {
+				return &FetchResult{
+					Body:          body,
+					ContentLength: size,
+					StatusCode:    http.StatusOK,
+				}, nil
+			}
+			slog.Warn("p2p fetch failed, falling back to origin", "key", key, "err", err)
+		}
+	}
+	return f.doFetch(ctx, key, rangeHeader)
+}
+
+func (f *Fetcher) P2PFetcher() *P2PFetcher  { return f.p2pFetcher }
+func (f *Fetcher) IsSmallBandwidth() bool    { return f.smallBandwidth }
+func (f *Fetcher) BWLimiter() *BandwidthLimiter { return f.bwLimiter }
 
 func (f *Fetcher) doFetch(ctx context.Context, key string, rangeHeader string) (*FetchResult, error) {
 	dedupKey := key

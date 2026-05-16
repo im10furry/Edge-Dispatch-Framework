@@ -20,6 +20,7 @@ type Edge struct {
 	reporter     *Reporter
 	tunnelClient *tunnel.Client // nil if not in NAT mode
 	prefetchMgr  *streaming.PrefetchManager
+	smartPrefetch *SmartPrefetchManager
 }
 
 // New creates a new Edge agent, initializing all sub-components.
@@ -70,6 +71,32 @@ func New(cfg *config.EdgeAgentConfig) (*Edge, error) {
 		)
 	}
 
+	// Initialize smart prefetch (v0.6+)
+	if cfg.PrefetchEnabled {
+		workers := cfg.PrefetchWorkers
+		if workers <= 0 {
+			workers = 2
+		}
+		bwLimit := cfg.PrefetchBandwidthLimit
+		if bwLimit <= 0 {
+			bwLimit = 20
+		}
+		edge.smartPrefetch = NewSmartPrefetchManager(cache, fetcher, workers, bwLimit)
+		if cfg.PrefetchNightModeStart > 0 {
+			edge.smartPrefetch.SetNightMode(
+				cfg.PrefetchNightModeStart,
+				cfg.PrefetchNightModeEnd,
+				cfg.PrefetchBandwidthLimit,
+			)
+		}
+		slog.Info("smart prefetch enabled",
+			"workers", workers,
+			"bw_limit", bwLimit,
+			"night_start", cfg.PrefetchNightModeStart,
+			"night_end", cfg.PrefetchNightModeEnd,
+		)
+	}
+
 	return edge, nil
 }
 
@@ -113,6 +140,11 @@ func (e *Edge) Start(ctx context.Context) error {
 		e.prefetchMgr.Start(ctx)
 	}
 
+	// Start smart prefetch manager (v0.6+)
+	if e.smartPrefetch != nil {
+		e.smartPrefetch.Start()
+	}
+
 	// Start the HTTP server (blocks until ctx cancelled)
 	if err := e.server.Start(ctx); err != nil {
 		return fmt.Errorf("start server: %w", err)
@@ -137,6 +169,11 @@ func (e *Edge) Shutdown(ctx context.Context) error {
 	// Stop prefetch manager (v0.4)
 	if e.prefetchMgr != nil {
 		e.prefetchMgr.Stop()
+	}
+
+	// Stop smart prefetch manager (v0.6+)
+	if e.smartPrefetch != nil {
+		e.smartPrefetch.Stop()
 	}
 
 	if err := e.server.Shutdown(ctx); err != nil {
