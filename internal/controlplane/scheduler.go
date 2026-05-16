@@ -340,14 +340,16 @@ func (s *Scheduler) filterForSmallBandwidth(nodes []*models.Node, resourceKey st
 	filtered := make([]*models.Node, 0, len(nodes))
 	for _, n := range nodes {
 		if n.Capabilities.MaxUplinkMbps > 0 && n.Capabilities.MaxUplinkMbps < threshold {
-			hasContent := false
-			if s.contentIndex != nil {
-				isHot, likelyCached := s.contentIndex.IsCached(n.NodeID, resourceKey)
-				hasContent = isHot || likelyCached
+			if resourceKey == "" || s.contentIndex == nil {
+				filtered = append(filtered, n)
+				continue
 			}
+			isHot, likelyCached := s.contentIndex.IsCached(n.NodeID, resourceKey)
 			e := n.Capabilities.CurrentEgressMbps
 			cap := float64(n.Capabilities.MaxUplinkMbps)
-			if cap > 0 && e/cap < 0.7 && hasContent {
+			if isHot || likelyCached {
+				filtered = append(filtered, n)
+			} else if cap > 0 && e/cap < 0.5 {
 				filtered = append(filtered, n)
 			}
 			continue
