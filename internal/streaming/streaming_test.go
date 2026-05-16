@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 
@@ -181,10 +182,10 @@ func TestChunkCacheKey(t *testing.T) {
 
 func TestInferStreamFromChunkKey(t *testing.T) {
 	tests := []struct {
-		key       string
-		stream    string
-		seq       int64
-		expectOK  bool
+		key      string
+		stream   string
+		seq      int64
+		expectOK bool
 	}{
 		{"live/stream1/segment_042.ts", "live/stream1", 42, true},
 		{"vod/video/init_001.m4s", "vod/video", 1, true},
@@ -431,4 +432,33 @@ func TestParseChunkKeyInvalid(t *testing.T) {
 	if ok {
 		t.Error("expected false for key without sequence")
 	}
+}
+
+func TestReadLimitedRejectsOversizedBody(t *testing.T) {
+	_, err := readLimited(strings.NewReader("abcdef"), 5)
+	if err == nil {
+		t.Fatal("expected oversized body error")
+	}
+}
+
+func TestHandleManifestRejectsOversizedContentLength(t *testing.T) {
+	cfg := &config.StreamingConfig{Enabled: true, WindowSize: 5, PrefetchCount: 1}
+	sw := NewSlidingWindow(newMockCache(), cfg)
+	pm := NewPrefetchManager(cfg, sw, "http://origin", "")
+	h := NewHandler(sw, pm, cfg)
+
+	_, _, err := h.HandleManifestRequest(context.Background(), "live/test.m3u8",
+		func(ctx context.Context, key string) (io.ReadCloser, int64, string, error) {
+			return io.NopCloser(strings.NewReader("#EXTM3U")), maxStreamingManifestBytes + 1, "application/vnd.apple.mpegurl", nil
+		})
+	if err == nil {
+		t.Fatal("expected oversized manifest error")
+	}
+}
+
+func TestPrefetchStopIsIdempotent(t *testing.T) {
+	cfg := &config.StreamingConfig{Enabled: false}
+	pm := NewPrefetchManager(cfg, NewSlidingWindow(newMockCache(), cfg), "http://origin", "")
+	pm.Stop()
+	pm.Stop()
 }

@@ -69,7 +69,10 @@ func NewAdminAPI(pg *store.PGStore, redis *store.RedisStore, registry *Registry,
 		} else {
 			slog.Warn("CP_ADMIN_SEED_PASSWORD not set, using default seed password for initial admin user")
 		}
-		hash, _ := bcrypt.GenerateFromPassword([]byte(seedPassword), bcrypt.DefaultCost)
+		hash, err := bcrypt.GenerateFromPassword([]byte(seedPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, fmt.Errorf("hash seed admin password: %w", err)
+		}
 		adminUser := &models.User{
 			TenantID:    "default",
 			Email:       "admin@edf.local",
@@ -214,7 +217,11 @@ func (a *AdminAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	refreshToken := auth.GenerateRefreshToken()
+	refreshToken, err := auth.GenerateRefreshToken()
+	if err != nil {
+		a.writeError(w, http.StatusInternalServerError, "AUTH_FAILED", "failed to create refresh token")
+		return
+	}
 	// Store refresh token hash (SHA-256) in DB for lookup
 	refreshHash := sha256Hash(refreshToken)
 	if err := a.pg.UpdateUserRefreshToken(r.Context(), user.UserID, refreshHash); err != nil {
@@ -271,7 +278,11 @@ func (a *AdminAPI) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Rotate refresh token
-	newRefreshToken := auth.GenerateRefreshToken()
+	newRefreshToken, err := auth.GenerateRefreshToken()
+	if err != nil {
+		a.writeError(w, http.StatusInternalServerError, "AUTH_FAILED", "failed to create refresh token")
+		return
+	}
 	newHash := sha256Hash(newRefreshToken)
 	if err := a.pg.UpdateUserRefreshToken(r.Context(), user.UserID, newHash); err != nil {
 		slog.Warn("failed to rotate refresh token", "user_id", user.UserID, "err", err)
@@ -511,10 +522,10 @@ func (a *AdminAPI) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodySize)
 	var body struct {
-		TenantID    string              `json:"tenant_id"`
-		Email       string              `json:"email"`
-		DisplayName string              `json:"display_name"`
-		Password    string              `json:"password"`
+		TenantID    string               `json:"tenant_id"`
+		Email       string               `json:"email"`
+		DisplayName string               `json:"display_name"`
+		Password    string               `json:"password"`
 		Roles       []models.RoleBinding `json:"roles"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -524,6 +535,10 @@ func (a *AdminAPI) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	body.Email = strings.TrimSpace(body.Email)
 	if body.Email == "" || body.Password == "" {
 		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "email and password are required")
+		return
+	}
+	if len(body.Password) > 72 {
+		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "password must be at most 72 bytes")
 		return
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
@@ -568,7 +583,7 @@ func (a *AdminAPI) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var update struct {
-		DisplayName string              `json:"display_name"`
+		DisplayName string               `json:"display_name"`
 		Roles       []models.RoleBinding `json:"roles"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {

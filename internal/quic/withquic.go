@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
@@ -30,6 +31,7 @@ type Server struct {
 	srv *http3.Server
 	cfg ServerConfig
 	ln  *quic.Listener
+	mu  sync.RWMutex
 }
 
 // NewServer creates a new QUIC server.
@@ -38,12 +40,14 @@ func NewServer(cfg ServerConfig) *Server {
 		slog.Warn("quic: no TLS config provided, HTTP/3 requires TLS")
 		return &Server{cfg: cfg}
 	}
+	tlsConfig := http3.ConfigureTLSConfig(cfg.TLSConfig)
+	cfg.TLSConfig = tlsConfig
 	return &Server{
 		cfg: cfg,
 		srv: &http3.Server{
 			Addr:       cfg.Addr,
 			Handler:    cfg.Handler,
-			TLSConfig:  cfg.TLSConfig,
+			TLSConfig:  tlsConfig,
 			QUICConfig: &quic.Config{EnableDatagrams: true},
 		},
 	}
@@ -73,7 +77,9 @@ func (s *Server) ListenAndServe() error {
 		udpConn.Close()
 		return fmt.Errorf("quic: create listener: %w", err)
 	}
+	s.mu.Lock()
 	s.ln = ln
+	s.mu.Unlock()
 
 	slog.Info("quic: HTTP/3 server listening", "addr", s.cfg.Addr)
 	return s.srv.ServeListener(ln)
@@ -81,8 +87,11 @@ func (s *Server) ListenAndServe() error {
 
 // Close gracefully shuts down the QUIC server.
 func (s *Server) Close() error {
-	if s.ln != nil {
-		return s.ln.Close()
+	s.mu.RLock()
+	ln := s.ln
+	s.mu.RUnlock()
+	if ln != nil {
+		return ln.Close()
 	}
 	if s.srv != nil {
 		return s.srv.Close()
@@ -92,5 +101,11 @@ func (s *Server) Close() error {
 
 // Addr returns the listen address.
 func (s *Server) Addr() string {
+	s.mu.RLock()
+	ln := s.ln
+	s.mu.RUnlock()
+	if ln != nil && ln.Addr() != nil {
+		return ln.Addr().String()
+	}
 	return s.cfg.Addr
 }

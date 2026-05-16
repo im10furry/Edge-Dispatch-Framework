@@ -73,6 +73,8 @@ type NodeResolver interface {
 	// GetNodeEndpoint returns the endpoint URL for a node.
 	// Returns empty string if node is NAT (use tunnel).
 	GetNodeEndpoint(nodeID string) (string, bool, error)
+	// GetEdgeToken returns a short-lived token from the latest dispatch result.
+	GetEdgeToken(nodeID string) (string, bool)
 	// GetBestNode returns the best node for a request.
 	GetBestNode(resourceKey string, clientIP string) (string, error)
 }
@@ -92,25 +94,16 @@ func New(cfg Config, resolver NodeResolver, logger *slog.Logger) *Gateway {
 		ctx:      ctx,
 		cancel:   cancel,
 		transport: &http.Transport{
-			MaxIdleConns:          100,
-			MaxIdleConnsPerHost:   20,
-			MaxConnsPerHost:       200,
-			IdleConnTimeout:       90 * time.Second,
-			DisableCompression:    false,
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 20,
+			MaxConnsPerHost:     200,
+			IdleConnTimeout:     90 * time.Second,
+			DisableCompression:  false,
 		},
 		promMetrics: &gwMetrics{
 			requestsTotal: metrics.NewCounter("gateway_requests_total", "Total number of proxy requests"),
 			errorsTotal:   metrics.NewCounter("gateway_errors_total", "Total number of proxy errors"),
 			tunnelGauge:   metrics.NewGauge("gateway_active_tunnels", "Number of active tunnel connections"),
-		},
-	}
-
-	gw.reverseProxy = &httputil.ReverseProxy{
-		Director: func(req *http.Request) {},
-		Transport: gw.transport,
-		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			gw.logger.Error("proxy error", "err", err)
-			http.Error(w, "proxy error", http.StatusBadGateway)
 		},
 	}
 
@@ -265,7 +258,7 @@ func (g *Gateway) handleObjectRequest(w http.ResponseWriter, r *http.Request) {
 
 	if isPublic && endpoint != "" {
 		// Public node: direct proxy
-		g.proxyToPublic(w, r, endpoint, key)
+		g.proxyToPublic(w, r, endpoint, nodeID, key)
 	} else {
 		// NAT node: proxy through tunnel
 		g.proxyToTunnel(w, r, nodeID, key)
@@ -304,7 +297,7 @@ func sanitizeGatewayKey(key string) string {
 	return strings.Join(parts, "/")
 }
 
-func (g *Gateway) proxyToPublic(w http.ResponseWriter, r *http.Request, endpoint, key string) {
+func (g *Gateway) proxyToPublic(w http.ResponseWriter, r *http.Request, endpoint, nodeID, key string) {
 	targetURL, err := url.Parse(endpoint)
 	if err != nil {
 		g.logger.Error("parse endpoint", "err", err, "endpoint", endpoint)
@@ -321,28 +314,38 @@ func (g *Gateway) proxyToPublic(w http.ResponseWriter, r *http.Request, endpoint
 	key = sanitizeGatewayKey(key)
 	targetURL.Path = path.Join("/obj/", key)
 
-	g.reverseProxy.Director = func(req *http.Request) {
-		req.URL.Scheme = targetURL.Scheme
-		req.URL.Host = targetURL.Host
-		req.URL.Path = targetURL.Path
-		req.Host = targetURL.Host
+	proxy := &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
+			req.URL.Scheme = targetURL.Scheme
+			req.URL.Host = targetURL.Host
+			req.URL.Path = targetURL.Path
+			req.Host = targetURL.Host
 
-		for _, h := range []string{
-			"Connection", "Keep-Alive", "Proxy-Authenticate",
-			"Proxy-Authorization", "TE", "Trailer", "Transfer-Encoding", "Upgrade",
-		} {
-			req.Header.Del(h)
-		}
+			for _, h := range []string{
+				"Connection", "Keep-Alive", "Proxy-Authenticate",
+				"Proxy-Authorization", "TE", "Trailer", "Transfer-Encoding", "Upgrade",
+			} {
+				req.Header.Del(h)
+			}
 
-		req.Header.Set("X-Forwarded-For", extractClientIP(req))
-		req.Header.Set("X-Forwarded-Host", r.Host)
-		req.Header.Set("X-Forwarded-Proto", "http")
-		if r.TLS != nil {
-			req.Header.Set("X-Forwarded-Proto", "https")
-		}
+			req.Header.Set("X-Forwarded-For", extractClientIP(req))
+			req.Header.Set("X-Forwarded-Host", r.Host)
+			req.Header.Set("X-Forwarded-Proto", "http")
+			if r.TLS != nil {
+				req.Header.Set("X-Forwarded-Proto", "https")
+			}
+			if edgeToken, ok := g.resolver.GetEdgeToken(nodeID); ok && edgeToken != "" {
+				req.URL.RawQuery = setTokenQuery(req.URL.RawQuery, edgeToken)
+			}
+		},
+		Transport: g.transport,
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			g.logger.Error("proxy error", "err", err)
+			http.Error(w, "proxy error", http.StatusBadGateway)
+		},
 	}
 
-	g.reverseProxy.ServeHTTP(w, r)
+	proxy.ServeHTTP(w, r)
 }
 
 func (g *Gateway) proxyToTunnel(w http.ResponseWriter, r *http.Request, nodeID, key string) {
@@ -356,6 +359,9 @@ func (g *Gateway) proxyToTunnel(w http.ResponseWriter, r *http.Request, nodeID, 
 	stripHopByHopHeaders(headers)
 	headers["X-Forwarded-For"] = extractClientIP(r)
 	headers["X-Forwarded-Host"] = r.Host
+	if edgeToken, ok := g.resolver.GetEdgeToken(nodeID); ok && edgeToken != "" {
+		headers["Authorization"] = "Bearer " + edgeToken
+	}
 
 	key = sanitizeGatewayKey(key)
 	reqHeader := &tunnel.HTTPRequestHeader{
@@ -384,6 +390,15 @@ func (g *Gateway) proxyToTunnel(w http.ResponseWriter, r *http.Request, nodeID, 
 	if bodyReader != nil {
 		io.Copy(w, bodyReader)
 	}
+}
+
+func setTokenQuery(rawQuery, token string) string {
+	q, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		q = make(url.Values)
+	}
+	q.Set("token", token)
+	return q.Encode()
 }
 
 func (g *Gateway) handleHealth(w http.ResponseWriter, r *http.Request) {

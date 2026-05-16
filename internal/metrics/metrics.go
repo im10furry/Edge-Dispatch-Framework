@@ -48,34 +48,38 @@ var defaultRegistry = &registry{
 }
 
 func NewGauge(name, help string, labels ...string) *GaugeFn {
-	entry := &metricEntry{
-		name:   name,
-		help:   help,
-		mtype:  typeGauge,
-		labels: labels,
-	}
-	g := &gaugeMetric{entry: entry, values: make(map[string]float64)}
-
 	defaultRegistry.mu.Lock()
-	defaultRegistry.gauges[name] = g
-	defaultRegistry.entries = append(defaultRegistry.entries, entry)
+	g, ok := defaultRegistry.gauges[name]
+	if !ok {
+		entry := &metricEntry{
+			name:   name,
+			help:   help,
+			mtype:  typeGauge,
+			labels: append([]string(nil), labels...),
+		}
+		g = &gaugeMetric{entry: entry, values: make(map[string]float64)}
+		defaultRegistry.gauges[name] = g
+		defaultRegistry.entries = append(defaultRegistry.entries, entry)
+	}
 	defaultRegistry.mu.Unlock()
 
 	return &GaugeFn{m: g, labels: labels}
 }
 
 func NewCounter(name, help string, labels ...string) *CounterFn {
-	entry := &metricEntry{
-		name:   name,
-		help:   help,
-		mtype:  typeCounter,
-		labels: labels,
-	}
-	c := &counterMetric{entry: entry, values: make(map[string]float64)}
-
 	defaultRegistry.mu.Lock()
-	defaultRegistry.counters[name] = c
-	defaultRegistry.entries = append(defaultRegistry.entries, entry)
+	c, ok := defaultRegistry.counters[name]
+	if !ok {
+		entry := &metricEntry{
+			name:   name,
+			help:   help,
+			mtype:  typeCounter,
+			labels: append([]string(nil), labels...),
+		}
+		c = &counterMetric{entry: entry, values: make(map[string]float64)}
+		defaultRegistry.counters[name] = c
+		defaultRegistry.entries = append(defaultRegistry.entries, entry)
+	}
 	defaultRegistry.mu.Unlock()
 
 	return &CounterFn{m: c, labels: labels}

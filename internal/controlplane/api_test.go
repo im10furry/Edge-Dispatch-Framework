@@ -13,9 +13,9 @@ import (
 
 func TestAPIHealthz(t *testing.T) {
 	cfg := &config.ControlPlaneConfig{
-		TokenSecret:    "test-secret",
-		MaxCandidates:  5,
-		DefaultTTLMs:   30000,
+		TokenSecret:     "test-secret",
+		MaxCandidates:   5,
+		DefaultTTLMs:    30000,
 		DegradeToOrigin: false,
 	}
 
@@ -52,9 +52,9 @@ func makeAuthRequest(method, url, body string) (*http.Request, error) {
 
 func TestAPIHandleRegisterBadRequest(t *testing.T) {
 	cfg := &config.ControlPlaneConfig{
-		TokenSecret:    "test-secret",
-		MaxCandidates:  5,
-		DefaultTTLMs:   30000,
+		TokenSecret:     "test-secret",
+		MaxCandidates:   5,
+		DefaultTTLMs:    30000,
 		DegradeToOrigin: false,
 	}
 
@@ -69,6 +69,64 @@ func TestAPIHandleRegisterBadRequest(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST /v1/nodes/register: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestAPIRejectsUnknownJSONFields(t *testing.T) {
+	cfg := &config.ControlPlaneConfig{
+		TokenSecret:     "test-secret",
+		MaxCandidates:   5,
+		DefaultTTLMs:    30000,
+		DegradeToOrigin: false,
+	}
+
+	api := NewAPI(nil, nil, nil, cfg)
+	ts := httptest.NewServer(api)
+	defer ts.Close()
+
+	body := `{"resource":{"key":"video/test.mp4"},"client":{},"unexpected":true}`
+	req, err := makeAuthRequest(http.MethodPost, ts.URL+"/v1/dispatch/resolve", body)
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST /v1/dispatch/resolve: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestAPIRejectsMultipleJSONValues(t *testing.T) {
+	cfg := &config.ControlPlaneConfig{
+		TokenSecret:     "test-secret",
+		MaxCandidates:   5,
+		DefaultTTLMs:    30000,
+		DegradeToOrigin: false,
+	}
+
+	api := NewAPI(nil, nil, nil, cfg)
+	ts := httptest.NewServer(api)
+	defer ts.Close()
+
+	body := `{"resource":{"key":"video/test.mp4"},"client":{}} {}`
+	req, err := makeAuthRequest(http.MethodPost, ts.URL+"/v1/dispatch/resolve", body)
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST /v1/dispatch/resolve: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -153,9 +211,9 @@ func TestClientIP(t *testing.T) {
 
 func TestAPIHandleHeartbeatBadRequest(t *testing.T) {
 	cfg := &config.ControlPlaneConfig{
-		TokenSecret:    "test-secret",
-		MaxCandidates:  5,
-		DefaultTTLMs:   30000,
+		TokenSecret:     "test-secret",
+		MaxCandidates:   5,
+		DefaultTTLMs:    30000,
 		DegradeToOrigin: false,
 	}
 
@@ -180,9 +238,9 @@ func TestAPIHandleHeartbeatBadRequest(t *testing.T) {
 
 func TestAPIHandleDispatchBadRequest(t *testing.T) {
 	cfg := &config.ControlPlaneConfig{
-		TokenSecret:    "test-secret",
-		MaxCandidates:  5,
-		DefaultTTLMs:   30000,
+		TokenSecret:     "test-secret",
+		MaxCandidates:   5,
+		DefaultTTLMs:    30000,
 		DegradeToOrigin: false,
 	}
 
@@ -202,5 +260,29 @@ func TestAPIHandleDispatchBadRequest(t *testing.T) {
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestSanitizeResourceKey(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+		want string
+	}{
+		{name: "plain", key: "video/test.mp4", want: "video/test.mp4"},
+		{name: "encoded space", key: "video/test%20file.mp4", want: "video/test file.mp4"},
+		{name: "reject traversal", key: "video/../secret", want: ""},
+		{name: "reject encoded traversal", key: "video/%2e%2e/secret", want: ""},
+		{name: "reject slash prefix", key: "/video/test.mp4", want: "video/test.mp4"},
+		{name: "reject backslash", key: `video\test.mp4`, want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeResourceKey(tt.key)
+			if got != tt.want {
+				t.Errorf("sanitizeResourceKey(%q) = %q, want %q", tt.key, got, tt.want)
+			}
+		})
 	}
 }

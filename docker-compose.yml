@@ -154,6 +154,7 @@ services:
       DNS_CONTROL_PLANE_URL: "http://control-plane:8080"
       DNS_DOMAIN: "edge.local"
       DNS_TTL_SECONDS: "30"
+      DNS_TOKEN_SECRET: "demo-secret-change-in-production"
     depends_on:
       - control-plane
 

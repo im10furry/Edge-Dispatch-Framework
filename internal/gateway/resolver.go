@@ -21,16 +21,17 @@ type ControlPlaneClient struct {
 
 // nodeInfoCache caches node information.
 type nodeInfoCache struct {
-	endpoint   string
-	isPublic   bool
-	expireAt   time.Time
+	endpoint  string
+	edgeToken string
+	isPublic  bool
+	expireAt  time.Time
 }
 
 // NodeInfo represents node information from control plane.
 type NodeInfo struct {
-	NodeID       string   `json:"node_id"`
-	Endpoints    []EndpointInfo `json:"endpoints"`
-	InboundReachable bool `json:"inbound_reachable"`
+	NodeID           string         `json:"node_id"`
+	Endpoints        []EndpointInfo `json:"endpoints"`
+	InboundReachable bool           `json:"inbound_reachable"`
 }
 
 // EndpointInfo represents a node endpoint.
@@ -66,6 +67,12 @@ type HintsInfo struct {
 // DispatchResponse is returned by the control plane.
 type DispatchResponse struct {
 	Candidates []CandidateInfo `json:"candidates"`
+	Token      DispatchToken   `json:"token"`
+}
+
+// DispatchToken carries the edge access token from the control plane.
+type DispatchToken struct {
+	Value string `json:"value"`
 }
 
 // CandidateInfo represents a scheduled edge node.
@@ -143,6 +150,17 @@ func (c *ControlPlaneClient) GetNodeEndpoint(nodeID string) (string, bool, error
 	return endpoint, isPublic, nil
 }
 
+// GetEdgeToken returns a cached dispatch token for a node.
+func (c *ControlPlaneClient) GetEdgeToken(nodeID string) (string, bool) {
+	if cached, ok := c.cache.Load(nodeID); ok {
+		info := cached.(nodeInfoCache)
+		if time.Now().Before(info.expireAt) && info.edgeToken != "" {
+			return info.edgeToken, true
+		}
+	}
+	return "", false
+}
+
 // GetBestNode returns the best node ID for a resource request.
 func (c *ControlPlaneClient) GetBestNode(resourceKey string, clientIP string) (string, error) {
 	req := DispatchRequest{
@@ -190,9 +208,10 @@ func (c *ControlPlaneClient) GetBestNode(resourceKey string, clientIP string) (s
 	// This avoids a subsequent GetNodeEndpoint call that would fail for synthetic node IDs.
 	if candidate.Endpoint != "" {
 		c.cache.Store(candidate.ID, nodeInfoCache{
-			endpoint: candidate.Endpoint,
-			isPublic: true,
-			expireAt: time.Now().Add(30 * time.Second),
+			endpoint:  candidate.Endpoint,
+			edgeToken: dispatchResp.Token.Value,
+			isPublic:  true,
+			expireAt:  time.Now().Add(30 * time.Second),
 		})
 	}
 

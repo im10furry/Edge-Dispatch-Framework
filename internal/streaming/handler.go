@@ -14,6 +14,11 @@ import (
 	"github.com/darkinno/edge-dispatch-framework/internal/models"
 )
 
+const (
+	maxStreamingChunkBytes    = 128 << 20
+	maxStreamingManifestBytes = 1 << 20
+)
+
 // Handler ties together the streaming components and provides HTTP-level
 // integration for the edge agent. It intercepts streaming requests to
 // orchestrate sliding window caching, manifest parsing, and prefetch.
@@ -26,12 +31,12 @@ type Handler struct {
 }
 
 type streamingMetrics struct {
-	chunkRequests   atomic.Int64
-	chunkCacheHits  atomic.Int64
+	chunkRequests    atomic.Int64
+	chunkCacheHits   atomic.Int64
 	chunkCacheMisses atomic.Int64
-	prefetched      atomic.Int64
-	manifestFetches atomic.Int64
-	latencySum      atomic.Int64
+	prefetched       atomic.Int64
+	manifestFetches  atomic.Int64
+	latencySum       atomic.Int64
 }
 
 // NewHandler creates a streaming handler.
@@ -81,13 +86,16 @@ func (h *Handler) HandleStreamingRequest(ctx context.Context, key string, fetchF
 
 	h.metrics.chunkCacheMisses.Add(1)
 
-	body, _, _, err := fetchFn(ctx, key)
+	body, contentLen, _, err := fetchFn(ctx, key)
 	if err != nil {
 		return nil, 0, false, err
 	}
 	defer body.Close()
+	if contentLen > maxStreamingChunkBytes {
+		return nil, 0, false, fmt.Errorf("streaming chunk exceeds %d bytes", maxStreamingChunkBytes)
+	}
 
-	data, err := io.ReadAll(body)
+	data, err := readLimited(body, maxStreamingChunkBytes)
 	if err != nil {
 		return nil, 0, false, fmt.Errorf("read upstream: %w", err)
 	}
@@ -113,13 +121,16 @@ func (h *Handler) HandleManifestRequest(ctx context.Context, key string, fetchFn
 
 	h.metrics.manifestFetches.Add(1)
 
-	body, _, contentType, err := fetchFn(ctx, key)
+	body, contentLen, contentType, err := fetchFn(ctx, key)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer body.Close()
+	if contentLen > maxStreamingManifestBytes {
+		return nil, nil, fmt.Errorf("manifest exceeds %d bytes", maxStreamingManifestBytes)
+	}
 
-	data, err := io.ReadAll(body)
+	data, err := readLimited(body, maxStreamingManifestBytes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read manifest: %w", err)
 	}
@@ -178,6 +189,18 @@ func avgLatency(sum, count int64) float64 {
 		return 0
 	}
 	return float64(sum) / float64(count)
+}
+
+func readLimited(r io.Reader, maxBytes int64) ([]byte, error) {
+	limited := io.LimitReader(r, maxBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, fmt.Errorf("body exceeds %d bytes", maxBytes)
+	}
+	return data, nil
 }
 
 func keyHasExt(key, ext string) bool {

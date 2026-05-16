@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -147,12 +148,18 @@ func (s *Server) dispatchResolve(ctx context.Context, req models.DispatchRequest
 		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if s.cfg.TokenSecret != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+s.cfg.TokenSecret)
+	}
 
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("dispatch request: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("dispatch status: %d", resp.StatusCode)
+	}
 
 	var dr models.DispatchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&dr); err != nil {
@@ -393,16 +400,16 @@ func copySection(src []byte, dst []byte, srcStart, length int) ([]byte, int) {
 }
 
 func extractIP(endpoint string) net.IP {
-	// Strip scheme prefix
-	if idx := strings.Index(endpoint, "://"); idx >= 0 {
-		endpoint = endpoint[idx+3:]
+	if u, err := url.Parse(endpoint); err == nil && u.Host != "" {
+		host := u.Hostname()
+		if host == "" {
+			host = u.Host
+		}
+		return net.ParseIP(host)
 	}
-	// Strip port suffix
-	if idx := strings.LastIndex(endpoint, ":"); idx > 0 {
-		endpoint = endpoint[:idx]
+	host, _, err := net.SplitHostPort(endpoint)
+	if err == nil {
+		return net.ParseIP(host)
 	}
-	// Strip brackets from IPv6
-	endpoint = strings.Trim(endpoint, "[]")
-
-	return net.ParseIP(endpoint)
+	return net.ParseIP(strings.Trim(endpoint, "[]"))
 }

@@ -145,8 +145,21 @@ func (c *Cache) Get(ctx context.Context, key string) (io.ReadCloser, int64, erro
 
 func (c *Cache) Put(ctx context.Context, key string, data io.Reader, size int64) error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	kp := c.keyPath(key)
-	c.mu.Unlock()
+	mp := filepath.Join(kp, "meta.json")
+
+	var oldSize int64
+	existed := false
+	if metaBytes, err := os.ReadFile(mp); err == nil {
+		m := cacheMetaPool.Get().(*cacheMeta)
+		if json.Unmarshal(metaBytes, m) == nil {
+			oldSize = m.Size
+			existed = true
+		}
+		cacheMetaPool.Put(m)
+	}
 
 	if err := os.MkdirAll(kp, 0o755); err != nil {
 		return fmt.Errorf("mkdir cache entry: %w", err)
@@ -171,7 +184,6 @@ func (c *Cache) Put(ctx context.Context, key string, data io.Reader, size int64)
 	m.LastAccess = now
 	metaBytes, _ := json.Marshal(m)
 	cacheMetaPool.Put(m)
-	mp := filepath.Join(kp, "meta.json")
 	if err := os.WriteFile(mp, metaBytes, 0o644); err != nil {
 		return fmt.Errorf("write meta: %w", err)
 	}
@@ -182,14 +194,16 @@ func (c *Cache) Put(ctx context.Context, key string, data io.Reader, size int64)
 	c.sizes[entryName] = written
 	c.accessMu.Unlock()
 
-	c.count.Add(1)
-	c.size.Add(written)
+	if existed {
+		c.size.Add(written - oldSize)
+	} else {
+		c.count.Add(1)
+		c.size.Add(written)
+	}
 
 	currentSize := c.size.Load()
 	if currentSize > c.maxBytes {
-		c.mu.Lock()
 		c.evict(ctx, currentSize-c.maxBytes)
-		c.mu.Unlock()
 	}
 
 	return nil
@@ -209,7 +223,9 @@ func (c *Cache) Delete(ctx context.Context, key string) error {
 	mp := filepath.Join(kp, "meta.json")
 
 	var metaSize int64
+	existed := false
 	if data, err := os.ReadFile(mp); err == nil {
+		existed = true
 		m := cacheMetaPool.Get().(*cacheMeta)
 		if json.Unmarshal(data, m) == nil {
 			metaSize = m.Size
@@ -227,8 +243,10 @@ func (c *Cache) Delete(ctx context.Context, key string) error {
 	delete(c.sizes, entryName)
 	c.accessMu.Unlock()
 
-	c.count.Add(-1)
-	c.size.Add(-metaSize)
+	if existed {
+		c.count.Add(-1)
+		c.size.Add(-metaSize)
+	}
 	return nil
 }
 

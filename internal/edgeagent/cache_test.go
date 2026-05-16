@@ -4,8 +4,13 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
+
+	"github.com/darkinno/edge-dispatch-framework/internal/auth"
+	"github.com/darkinno/edge-dispatch-framework/internal/config"
 )
 
 func newTestCache(t *testing.T) (*Cache, func()) {
@@ -207,6 +212,14 @@ func TestCachePutOverwrite(t *testing.T) {
 	if size != 7 {
 		t.Errorf("size = %d, want 7", size)
 	}
+
+	stats := c.Stats()
+	if stats.ItemCount != 1 {
+		t.Errorf("ItemCount = %d, want 1", stats.ItemCount)
+	}
+	if stats.Size != 7 {
+		t.Errorf("Size = %d, want 7", stats.Size)
+	}
 }
 
 func TestParseRangeHeader(t *testing.T) {
@@ -244,5 +257,35 @@ func TestParseRangeHeader(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestHandleObjectHeadDoesNotWriteBodyFromCache(t *testing.T) {
+	c, cleanup := newTestCache(t)
+	defer cleanup()
+
+	key := "video/head-test.bin"
+	if err := c.Put(context.Background(), key, bytes.NewReader([]byte("cached body")), int64(len("cached body"))); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	cfg := &config.EdgeAgentConfig{NodeToken: "secret"}
+	s := NewServer(c, nil, cfg)
+	token, err := auth.NewSigner(cfg.NodeToken).Sign(auth.TokenPayload{Key: key})
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodHead, "/obj/"+key+"?token="+token, nil)
+	req.RemoteAddr = "192.0.2.10:12345"
+	rec := httptest.NewRecorder()
+
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("body length = %d, want 0", rec.Body.Len())
 	}
 }

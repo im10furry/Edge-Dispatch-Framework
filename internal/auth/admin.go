@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
@@ -30,6 +31,7 @@ type NonceCache struct {
 	cache  map[string]time.Time
 	maxAge time.Duration
 	stopCh chan struct{}
+	once   sync.Once
 }
 
 // NewNonceCache creates a new nonce cache.
@@ -65,7 +67,9 @@ func (nc *NonceCache) cleanupLoop() {
 
 // Close stops the cleanup goroutine.
 func (nc *NonceCache) Close() {
-	close(nc.stopCh)
+	nc.once.Do(func() {
+		close(nc.stopCh)
+	})
 }
 
 func (nc *NonceCache) CheckAndStore(nonce string) bool {
@@ -107,10 +111,11 @@ func (a *AdminAuth) IsEnabled() bool {
 
 // Verify verifies the HMAC signature from the request headers.
 // Required headers:
-//   X-Admin-KeyId: the access key
-//   X-Admin-Timestamp: Unix timestamp
-//   X-Admin-Nonce: random nonce
-//   X-Admin-Signature: HMAC-SHA256 signature of (keyId + timestamp + nonce)
+//
+//	X-Admin-KeyId: the access key
+//	X-Admin-Timestamp: Unix timestamp
+//	X-Admin-Nonce: random nonce
+//	X-Admin-Signature: HMAC-SHA256 signature of (keyId + timestamp + nonce)
 func (a *AdminAuth) Verify(r *http.Request, nonceCache *NonceCache) (string, error) {
 	keyID := r.Header.Get("X-Admin-KeyId")
 	timestampStr := r.Header.Get("X-Admin-Timestamp")
@@ -189,10 +194,15 @@ type JWTClaims struct {
 	IssuedAt  int64  `json:"iat"`
 }
 
+type jwtHeader struct {
+	Alg string `json:"alg"`
+	Typ string `json:"typ"`
+}
+
 // JWTSession manages JWT token creation and verification.
 type JWTSession struct {
-	mu          sync.RWMutex
-	secret      string
+	mu            sync.RWMutex
+	secret        string
 	expirySeconds int
 }
 
@@ -217,7 +227,7 @@ func (j *JWTSession) Sign(userID, tenantID, email string) (string, int64, error)
 		IssuedAt:  now,
 	}
 
-	header := map[string]string{"alg": "HS256", "typ": "JWT"}
+	header := jwtHeader{Alg: "HS256", Typ: "JWT"}
 	headerJSON, _ := json.Marshal(header)
 	payloadJSON, _ := json.Marshal(claims)
 
@@ -237,6 +247,18 @@ func (j *JWTSession) Verify(token string) (*JWTClaims, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("invalid token format")
+	}
+
+	headerJSON, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, fmt.Errorf("decode header: %w", err)
+	}
+	var header jwtHeader
+	if err := json.Unmarshal(headerJSON, &header); err != nil {
+		return nil, fmt.Errorf("unmarshal header: %w", err)
+	}
+	if header.Alg != "HS256" || header.Typ != "JWT" {
+		return nil, fmt.Errorf("invalid token header")
 	}
 
 	signingInput := parts[0] + "." + parts[1]
@@ -292,6 +314,10 @@ func (j *JWTSession) Middleware(next http.Handler) http.Handler {
 }
 
 // GenerateRefreshToken creates a random refresh token.
-func GenerateRefreshToken() string {
-	return "rt_" + uuid.New().String()
+func GenerateRefreshToken() (string, error) {
+	var b [32]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("generate refresh token: %w", err)
+	}
+	return "rt_" + base64.RawURLEncoding.EncodeToString(b[:]), nil
 }

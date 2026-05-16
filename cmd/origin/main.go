@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -102,45 +104,15 @@ func main() {
 
 		rangeHeader := r.Header.Get("Range")
 		if rangeHeader != "" {
-			rangeStr := strings.TrimPrefix(rangeHeader, "bytes=")
-			if rangeStr == rangeHeader {
+			start, end, err := parseHTTPRange(rangeHeader, info.Size())
+			if err != nil {
+				w.Header().Set("Content-Range", "bytes */"+strconv.FormatInt(info.Size(), 10))
 				http.Error(w, "invalid range", http.StatusRequestedRangeNotSatisfiable)
 				return
-			}
-
-			parts := strings.SplitN(rangeStr, "-", 2)
-			if len(parts) != 2 {
-				http.Error(w, "invalid range", http.StatusRequestedRangeNotSatisfiable)
-				return
-			}
-
-			fileSize := info.Size()
-
-			var start, end int64
-			if parts[0] == "" {
-				start = fileSize - mustParseInt64(parts[1])
-				end = fileSize - 1
-			} else {
-				start = mustParseInt64(parts[0])
-				if parts[1] != "" {
-					end = mustParseInt64(parts[1])
-				} else {
-					end = fileSize - 1
-				}
-			}
-
-			if start < 0 || end < 0 || start > end || start >= fileSize {
-				w.Header().Set("Content-Range", "bytes */"+strconv.FormatInt(fileSize, 10))
-				http.Error(w, "range not satisfiable", http.StatusRequestedRangeNotSatisfiable)
-				return
-			}
-
-			if end >= fileSize {
-				end = fileSize - 1
 			}
 
 			contentLength := end - start + 1
-			w.Header().Set("Content-Range", "bytes "+strconv.FormatInt(start, 10)+"-"+strconv.FormatInt(end, 10)+"/"+strconv.FormatInt(fileSize, 10))
+			w.Header().Set("Content-Range", "bytes "+strconv.FormatInt(start, 10)+"-"+strconv.FormatInt(end, 10)+"/"+strconv.FormatInt(info.Size(), 10))
 			w.Header().Set("Content-Length", strconv.FormatInt(contentLength, 10))
 			w.WriteHeader(http.StatusPartialContent)
 
@@ -151,10 +123,13 @@ func main() {
 			}
 			defer f.Close()
 
-			f.Seek(start, 0)
-			buf := make([]byte, contentLength)
-			f.Read(buf)
-			w.Write(buf)
+			if _, err := f.Seek(start, io.SeekStart); err != nil {
+				logger.Error("failed to seek file", "path", filePath, "error", err)
+				return
+			}
+			if _, err := io.CopyN(w, f, contentLength); err != nil {
+				logger.Debug("failed to write range response", "path", filePath, "error", err)
+			}
 			return
 		}
 
@@ -209,9 +184,49 @@ func main() {
 	logger.Info("origin server stopped")
 }
 
-func mustParseInt64(s string) int64 {
-	n, _ := strconv.ParseInt(s, 10, 64)
-	return n
+func parseHTTPRange(rangeHeader string, fileSize int64) (int64, int64, error) {
+	rangeStr := strings.TrimPrefix(rangeHeader, "bytes=")
+	if rangeStr == rangeHeader {
+		return 0, 0, fmt.Errorf("invalid range prefix")
+	}
+
+	parts := strings.SplitN(rangeStr, "-", 2)
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid range format")
+	}
+
+	var start, end int64
+	if parts[0] == "" {
+		suffix, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil || suffix <= 0 {
+			return 0, 0, fmt.Errorf("invalid suffix range")
+		}
+		start = fileSize - suffix
+		if start < 0 {
+			start = 0
+		}
+		end = fileSize - 1
+	} else {
+		var err error
+		start, err = strconv.ParseInt(parts[0], 10, 64)
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid range start")
+		}
+		if parts[1] != "" {
+			end, err = strconv.ParseInt(parts[1], 10, 64)
+			if err != nil {
+				return 0, 0, fmt.Errorf("invalid range end")
+			}
+		} else {
+			end = fileSize - 1
+		}
+	}
+
+	if start < 0 || end < 0 || start > end || start >= fileSize {
+		return 0, 0, fmt.Errorf("range not satisfiable")
+	}
+	if end >= fileSize {
+		end = fileSize - 1
+	}
+	return start, end, nil
 }
-
-

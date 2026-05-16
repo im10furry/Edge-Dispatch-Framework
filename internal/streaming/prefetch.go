@@ -3,7 +3,6 @@ package streaming
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -20,25 +19,26 @@ import (
 // When a client requests chunk N, the manager queues chunks N+1 through N+prefetchCount
 // for background fetching and caching.
 type PrefetchManager struct {
-	cfg        *config.StreamingConfig
-	window     *SlidingWindow
-	originURL  string
-	nodeToken  string
-	client     *http.Client
+	cfg       *config.StreamingConfig
+	window    *SlidingWindow
+	originURL string
+	nodeToken string
+	client    *http.Client
 
-	mu         sync.RWMutex
-	streams    map[string]*streamState
-	queue      chan prefetchJob
-	stopCh     chan struct{}
-	workersWg  sync.WaitGroup
+	mu        sync.RWMutex
+	streams   map[string]*streamState
+	queue     chan prefetchJob
+	stopCh    chan struct{}
+	stopOnce  sync.Once
+	workersWg sync.WaitGroup
 
 	prefetched atomic.Int64
 	failed     atomic.Int64
 }
 
 type streamState struct {
-	lastSeq      int64
-	lastRefresh  time.Time
+	lastSeq     int64
+	lastRefresh time.Time
 }
 
 type prefetchJob struct {
@@ -95,7 +95,9 @@ func (pm *PrefetchManager) Start(ctx context.Context) {
 
 // Stop gracefully stops the prefetch workers.
 func (pm *PrefetchManager) Stop() {
-	close(pm.stopCh)
+	pm.stopOnce.Do(func() {
+		close(pm.stopCh)
+	})
 	pm.workersWg.Wait()
 	slog.Info("prefetch manager stopped",
 		"total_prefetched", pm.prefetched.Load(),
@@ -145,6 +147,8 @@ func (pm *PrefetchManager) OnChunkRequest(streamKey string, seqNum int64) {
 
 	select {
 	case pm.queue <- prefetchJob{streamKey: streamKey, chunks: chunks, priority: 1}:
+	case <-pm.stopCh:
+		return
 	default:
 		slog.Debug("prefetch queue full, dropping", "streamKey", streamKey)
 	}
@@ -188,6 +192,8 @@ func (pm *PrefetchManager) OnManifestUpdate(m *models.ManifestInfo) {
 	if len(toFetch) > 0 {
 		select {
 		case pm.queue <- prefetchJob{streamKey: m.StreamKey, chunks: toFetch, priority: 2}:
+		case <-pm.stopCh:
+			return
 		default:
 		}
 	}
@@ -252,7 +258,12 @@ func (pm *PrefetchManager) processJob(ctx context.Context, job prefetchJob) {
 			continue
 		}
 
-		data, err := io.ReadAll(resp.Body)
+		if resp.ContentLength > maxStreamingChunkBytes {
+			resp.Body.Close()
+			pm.failed.Add(1)
+			continue
+		}
+		data, err := readLimited(resp.Body, maxStreamingChunkBytes)
 		resp.Body.Close()
 		if err != nil {
 			pm.failed.Add(1)

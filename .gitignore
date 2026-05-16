@@ -9,6 +9,7 @@ stress.exe
 # Test artifacts
 coverage
 coverage.out
+.cache/
 
 # IDE
 .idea/

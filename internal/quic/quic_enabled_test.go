@@ -208,7 +208,7 @@ func TestHTTP3Roundtrip(t *testing.T) {
 	}
 
 	addr := srv.Addr()
-	resp, err := client.Get("https://127.0.0.1" + addr + "/ping")
+	resp, err := client.Get("https://" + addr + "/ping")
 	if err != nil {
 		t.Fatalf("HTTP/3 GET failed: %v", err)
 	}
@@ -218,4 +218,3 @@ func TestHTTP3Roundtrip(t *testing.T) {
 		t.Errorf("expected status 200, got %d", resp.StatusCode)
 	}
 }
-

@@ -13,6 +13,8 @@
 # 或创建 .env 文件:
 #   CP_TOKEN_SECRET=your-strong-secret
 #   GW_AUTH_TOKEN=your-strong-token
+#   GW_CP_TOKEN=your-strong-control-plane-token
+#   DNS_TOKEN_SECRET=your-strong-control-plane-token
 # =============================================================================
 
 services:
@@ -76,6 +78,7 @@ services:
       GW_TUNNEL_ADDR: ":7700"
       GW_CONTROL_PLANE_URL: "http://control-plane:8080"
       GW_AUTH_TOKEN: "${GW_AUTH_TOKEN:-demo-tunnel-token-change-in-production}"
+      GW_CP_TOKEN: "${GW_CP_TOKEN:-${CP_TOKEN_SECRET:-demo-secret-change-in-production}}"
       GW_QUIC_ENABLED: "${GW_QUIC_ENABLED:-true}"
       GW_QUIC_LISTEN_ADDR: "${GW_QUIC_LISTEN_ADDR:-:9443}"
     depends_on:
@@ -94,6 +97,7 @@ services:
       DNS_CONTROL_PLANE_URL: "http://control-plane:8080"
       DNS_DOMAIN: "${DNS_DOMAIN:-edge.local}"
       DNS_TTL_SECONDS: "${DNS_TTL_SECONDS:-30}"
+      DNS_TOKEN_SECRET: "${DNS_TOKEN_SECRET:-${CP_TOKEN_SECRET:-demo-secret-change-in-production}}"
     depends_on:
       - control-plane
     restart: unless-stopped
