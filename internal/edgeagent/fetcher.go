@@ -59,7 +59,7 @@ func NewFetcher(cfg *config.EdgeAgentConfig) *Fetcher {
 		originURL: cfg.OriginURL,
 		nodeToken: cfg.NodeToken,
 		client: &http.Client{
-			Timeout:   30 * time.Second,
+			Timeout:   300 * time.Second,
 			Transport: transport,
 		},
 		cb:      newCircuitBreaker(5, 30*time.Second),

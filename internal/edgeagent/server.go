@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -200,10 +201,10 @@ func withGzipCompression(next http.Handler) http.Handler {
 func (s *Server) Start(ctx context.Context) error {
 	s.httpSrv = &http.Server{
 		Handler:           s.Handler(),
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      300 * time.Second,
 		IdleTimeout:       120 * time.Second,
-		ReadHeaderTimeout: 5 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	var ln net.Listener
@@ -351,22 +352,27 @@ func (s *Server) handleObject(w http.ResponseWriter, r *http.Request) {
 
 		// Write to cache while serving response (only for full responses, not range)
 		if rangeHeader == "" {
-			var buf bytes.Buffer
-			tee := io.TeeReader(fr.Body, &buf)
-			s.serveFromFetchResult(w, r, &FetchResult{
-				Body:          io.NopCloser(tee),
-				ContentType:   fr.ContentType,
-				ContentLength: fr.ContentLength,
-				ETag:          fr.ETag,
-				StatusCode:    fr.StatusCode,
-			})
-			n := int64(buf.Len())
-			s.metrics.bytesSent.Add(n)
-			go func() {
-				if err := s.cache.Put(context.Background(), key, &buf, n); err != nil {
-					slog.Debug("cache put failed", "key", key, "err", err)
-				}
-			}()
+			const largeFileThreshold = 10 * 1024 * 1024 // 10MB
+			if fr.ContentLength > largeFileThreshold || fr.ContentLength < 0 {
+				s.serveAndCacheLarge(w, r, key, fr)
+			} else {
+				var buf bytes.Buffer
+				tee := io.TeeReader(fr.Body, &buf)
+				s.serveFromFetchResult(w, r, &FetchResult{
+					Body:          io.NopCloser(tee),
+					ContentType:   fr.ContentType,
+					ContentLength: fr.ContentLength,
+					ETag:          fr.ETag,
+					StatusCode:    fr.StatusCode,
+				})
+				n := int64(buf.Len())
+				s.metrics.bytesSent.Add(n)
+				go func() {
+					if err := s.cache.Put(context.Background(), key, &buf, n); err != nil {
+						slog.Debug("cache put failed", "key", key, "err", err)
+					}
+				}()
+			}
 		} else if fr.ContentLength > 0 {
 			s.serveFromFetchResult(w, r, fr)
 			s.metrics.bytesSent.Add(fr.ContentLength)
@@ -420,6 +426,59 @@ func (s *Server) serveFromFetchResult(w http.ResponseWriter, r *http.Request, fr
 	if _, err := io.Copy(w, fr.Body); err != nil {
 		slog.Debug("write fetched body failed", "err", err)
 	}
+}
+
+func (s *Server) serveAndCacheLarge(w http.ResponseWriter, r *http.Request, key string, fr *FetchResult) {
+	tmpFile, err := os.CreateTemp("", "edf-large-*")
+	if err != nil {
+		slog.Error("create temp file for large cache", "err", err)
+		s.serveFromFetchResult(w, r, fr)
+		return
+	}
+	tmpPath := tmpFile.Name()
+
+	if fr.ContentType != "" {
+		w.Header().Set("Content-Type", fr.ContentType)
+	} else {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+	if fr.ETag != "" {
+		w.Header().Set("ETag", fr.ETag)
+	}
+	if fr.ContentLength > 0 && fr.StatusCode != http.StatusPartialContent {
+		w.Header().Set("Content-Length", strconv.FormatInt(fr.ContentLength, 10))
+	}
+	w.WriteHeader(fr.StatusCode)
+	if r.Method == http.MethodHead {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return
+	}
+
+	tee := io.TeeReader(fr.Body, tmpFile)
+	written, copyErr := io.Copy(w, tee)
+	tmpFile.Close()
+
+	if copyErr != nil {
+		slog.Debug("write large body failed", "key", key, "err", copyErr)
+		s.metrics.errors.Add(1)
+		os.Remove(tmpPath)
+		return
+	}
+	s.metrics.bytesSent.Add(written)
+
+	go func() {
+		defer os.Remove(tmpPath)
+		f, err := os.Open(tmpPath)
+		if err != nil {
+			slog.Debug("reopen temp file for cache", "err", err)
+			return
+		}
+		defer f.Close()
+		if err := s.cache.Put(context.Background(), key, f, written); err != nil {
+			slog.Debug("cache put large failed", "key", key, "err", err)
+		}
+	}()
 }
 
 func (s *Server) serveRangeFromCache(w http.ResponseWriter, r *http.Request, reader io.ReadCloser, contentLen int64, key string) {
