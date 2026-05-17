@@ -1,9 +1,11 @@
 package localconfig
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -84,12 +86,17 @@ func (s *LocalConfigServer) ListenAddr() string {
 }
 
 func (s *LocalConfigServer) Start() error {
-	slog.Info("local config server starting", "addr", s.ListenAddr())
-	return s.httpSrv.ListenAndServe()
+	ln, err := net.Listen("tcp", s.ListenAddr())
+	if err != nil {
+		return fmt.Errorf("local config listen: %w", err)
+	}
+	slog.Info("local config UI started", "addr", s.ListenAddr())
+	go s.httpSrv.Serve(ln)
+	return nil
 }
 
-func (s *LocalConfigServer) Shutdown() error {
-	return nil
+func (s *LocalConfigServer) Shutdown(ctx context.Context) error {
+	return s.httpSrv.Shutdown(ctx)
 }
 
 func (s *LocalConfigServer) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -240,9 +247,60 @@ func (s *LocalConfigServer) handleAPIDiskInfo(w http.ResponseWriter, r *http.Req
 }
 
 func (s *LocalConfigServer) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
-	status := StatusResponse{
-		Uptime:       time.Since(startTime).Round(time.Second).String(),
-		BandwidthUsage: float64(s.cfg.MaxUplinkMbps) * 0.3,
+	type statusResp struct {
+		Uptime          string  `json:"uptime"`
+		CacheHitRatio   float64 `json:"cache_hit_ratio"`
+		CacheMB         float64 `json:"cache_mb"`
+		TotalRequests   int64   `json:"total_requests"`
+		TotalBytes      int64   `json:"total_bytes"`
+		EgressMbps      float64 `json:"egress_mbps"`
+		IngressMbps     float64 `json:"ingress_mbps"`
+		Goroutines      int     `json:"goroutines"`
+		NumCPU          int     `json:"num_cpu"`
+		MaxUplinkMbps   int64   `json:"max_uplink_mbps"`
+	}
+
+	status := statusResp{
+		Uptime:        time.Since(startTime).Round(time.Second).String(),
+		MaxUplinkMbps: s.cfg.MaxUplinkMbps,
+	}
+
+	// Try to fetch real metrics from the edge agent
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get("http://localhost:9090/metrics?format=json")
+	if err == nil {
+		defer resp.Body.Close()
+		var data map[string]interface{}
+		if json.NewDecoder(resp.Body).Decode(&data) == nil {
+			if v, ok := data["cache_hits"].(float64); ok {
+				hits := int64(v)
+				if v2, ok := data["cache_misses"].(float64); ok {
+					misses := int64(v2)
+					if hits+misses > 0 {
+						status.CacheHitRatio = float64(hits) / float64(hits+misses)
+					}
+				}
+			}
+			if v, ok := data["requests"].(float64); ok {
+				status.TotalRequests = int64(v)
+			}
+			if v, ok := data["bytes_sent"].(float64); ok {
+				status.TotalBytes = int64(v)
+			}
+			if bw, ok := data["bandwidth"].(map[string]interface{}); ok {
+				if v, ok := bw["egress_mbps"].(float64); ok {
+					status.EgressMbps = v
+				}
+				if v, ok := bw["ingress_mbps"].(float64); ok {
+					status.IngressMbps = v
+				}
+			}
+			if cache, ok := data["cache"].(map[string]interface{}); ok {
+				if v, ok := cache["size"].(float64); ok {
+					status.CacheMB = v / 1024 / 1024
+				}
+			}
+		}
 	}
 	writeJSON(w, status)
 }
@@ -589,34 +647,56 @@ loadConfig();
 
 const statusPage = `
 <div class="card">
-  <h2>节点运行状态</h2>
+  <h2>实时运行状态 <span style="font-size:11px;color:var(--text-muted)">(每5秒刷新)</span></h2>
   <div class="metric-grid">
     <div class="metric-card"><div class="value" id="uptime">--</div><div class="label">运行时长</div></div>
     <div class="metric-card"><div class="value" id="cacheHitRatio">--</div><div class="label">缓存命中率</div></div>
-    <div class="metric-card"><div class="value" id="cacheSize">--</div><div class="label">缓存大小 (GB)</div></div>
-    <div class="metric-card"><div class="value" id="egress">--</div><div class="label">当前出站 (Mbps)</div></div>
+    <div class="metric-card"><div class="value" id="cacheSize">--</div><div class="label">缓存大小 (MB)</div></div>
+    <div class="metric-card"><div class="value" id="totalRequests">--</div><div class="label">总请求数</div></div>
+    <div class="metric-card"><div class="value" id="egress">--</div><div class="label">出站带宽 (Mbps)</div></div>
+    <div class="metric-card"><div class="value" id="ingress">--</div><div class="label">入站带宽 (Mbps)</div></div>
+    <div class="metric-card"><div class="value" id="totalBytes">--</div><div class="label">总流量 (MB)</div></div>
+    <div class="metric-card"><div class="value" id="goroutines">--</div><div class="label">Goroutines / CPU</div></div>
   </div>
 </div>
 <div class="card">
-  <h2>带宽使用</h2>
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-    <span style="font-size:13px;color:var(--text-secondary)">带宽使用率</span>
-    <span id="bwPercent" style="font-size:13px;color:var(--text-muted)">--</span>
+  <h2>带宽使用趋势</h2>
+  <div style="margin-bottom:12px">
+    <span style="color:var(--primary);font-size:13px">■ 出站</span>
+    <span style="color:var(--warning);font-size:13px;margin-left:12px">■ 入站</span>
   </div>
-  <div class="bar"><div class="bar-fill good" id="bwBar" style="width:30%"></div></div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span style="font-size:13px;color:var(--text-secondary);min-width:60px">出站</span>
+    <div class="bar" style="flex:1"><div class="bar-fill good" id="egressBar" style="width:0%"></div></div>
+    <span id="egressVal" style="font-size:12px;color:var(--text-muted);min-width:70px">--</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+    <span style="font-size:13px;color:var(--text-secondary);min-width:60px">入站</span>
+    <div class="bar" style="flex:1"><div class="bar-fill warn" id="ingressBar" style="width:0%"></div></div>
+    <span id="ingressVal" style="font-size:12px;color:var(--text-muted);min-width:70px">--</span>
+  </div>
 </div>
 <script>
 async function loadStatus() {
-  const r = await fetch('/api/status');
-  const d = await r.json();
-  document.getElementById('uptime').textContent = d.uptime;
-  document.getElementById('cacheHitRatio').textContent = (d.cache_hit_ratio*100||0).toFixed(1)+'%';
-  document.getElementById('cacheSize').textContent = (d.cache_size_gb||0).toFixed(1);
-  document.getElementById('egress').textContent = (d.current_egress_mbps||0).toFixed(1);
-  document.getElementById('bwPercent').textContent = (d.bandwidth_usage||0).toFixed(0)+'%';
-  document.getElementById('bwBar').style.width = (d.bandwidth_usage||0)+'%';
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    document.getElementById('uptime').textContent = d.uptime || '--';
+    document.getElementById('cacheHitRatio').textContent = (d.cache_hit_ratio*100||0).toFixed(1)+'%';
+    document.getElementById('cacheSize').textContent = (d.cache_mb||0).toFixed(1);
+    document.getElementById('totalRequests').textContent = d.total_requests||0;
+    document.getElementById('egress').textContent = (d.egress_mbps||0).toFixed(2);
+    document.getElementById('ingress').textContent = (d.ingress_mbps||0).toFixed(2);
+    document.getElementById('totalBytes').textContent = ((d.total_bytes||0)/1024/1024).toFixed(1);
+    document.getElementById('goroutines').textContent = (d.goroutines||0)+' / '+(d.num_cpu||1);
+    document.getElementById('egressVal').textContent = (d.egress_mbps||0).toFixed(2)+' Mbps';
+    document.getElementById('ingressVal').textContent = (d.ingress_mbps||0).toFixed(2)+' Mbps';
+    var maxBW = d.max_uplink_mbps || 100;
+    document.getElementById('egressBar').style.width = Math.min((d.egress_mbps||0)/maxBW*100, 100)+'%';
+    document.getElementById('ingressBar').style.width = Math.min((d.ingress_mbps||0)/maxBW*100, 100)+'%';
+  } catch(e) {}
 }
 loadStatus();
-setInterval(loadStatus, 30000);
+setInterval(loadStatus, 5000);
 </script>
 `
