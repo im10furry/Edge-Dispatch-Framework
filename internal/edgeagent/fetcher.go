@@ -71,7 +71,7 @@ func NewFetcher(cfg *config.EdgeAgentConfig) *Fetcher {
 		f.useP2P = true
 	}
 
-	if cfg.MaxUplinkMbps > 0 && cfg.MaxUplinkMbps < 50 {
+	if cfg.MaxUplinkMbps > 0 && cfg.MaxUplinkMbps < 50 && !cfg.ShieldMode {
 		f.smallBandwidth = true
 		f.bwLimiter = NewBandwidthLimiter(int(float64(cfg.MaxUplinkMbps) * 0.8))
 		slog.Info("small bandwidth fetcher mode enabled", "uplink_mbps", cfg.MaxUplinkMbps)

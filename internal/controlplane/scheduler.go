@@ -295,6 +295,11 @@ func (s *Scheduler) scoreBandwidth(node *models.Node, score float64, hotNodes, b
 		}
 	}
 
+	// Shield node bonus: prioritize origin-shield nodes
+	if node.Capabilities.ShieldMode {
+		score += 20.0
+	}
+
 	return score
 }
 

@@ -90,6 +90,7 @@ type Capabilities struct {
 	SupportsP2P        bool    `json:"supports_p2p"`
 	CurrentEgressMbps  float64 `json:"current_egress_mbps"`
 	CurrentIngressMbps float64 `json:"current_ingress_mbps"`
+	ShieldMode         bool    `json:"shield_mode"`
 }
 
 // NodeScores holds computed quality scores.

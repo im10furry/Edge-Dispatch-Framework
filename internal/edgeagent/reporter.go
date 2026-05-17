@@ -252,6 +252,7 @@ func (r *Reporter) collectCapabilities() models.Capabilities {
 		MaxUplinkMbps:    maxBW,
 		SupportsHTTPS:    false,
 		SupportsP2P:      r.cfg.P2PEnabled,
+		ShieldMode:       r.cfg.ShieldMode,
 	}
 }
 

@@ -16,6 +16,7 @@ type PeerInfo struct {
 	LatencyMs  int64
 	HasContent map[string]bool
 	LastSeen   time.Time
+	IsShield   bool
 }
 
 type P2PFetcher struct {
@@ -43,16 +44,22 @@ func NewP2PFetcher() *P2PFetcher {
 func (p *P2PFetcher) FetchFromPeer(ctx context.Context, key string) (io.ReadCloser, int64, error) {
 	p.peersMu.RLock()
 	peers := make([]*PeerInfo, 0, len(p.peers))
+	shieldPeers := make([]*PeerInfo, 0)
 	for _, peer := range p.peers {
 		if peer.HasContent[key] {
-			peers = append([]*PeerInfo{peer}, peers...)
+			if peer.IsShield {
+				shieldPeers = append(shieldPeers, peer)
+			} else {
+				peers = append([]*PeerInfo{peer}, peers...)
+			}
 		} else {
 			peers = append(peers, peer)
 		}
 	}
 	p.peersMu.RUnlock()
 
-	for _, peer := range peers {
+	allPeers := append(shieldPeers, peers...)
+	for _, peer := range allPeers {
 		body, size, err := p.tryFetch(ctx, peer, key)
 		if err == nil {
 			slog.Info("p2p fetch success", "key", key, "peer", peer.NodeID, "size", size)
