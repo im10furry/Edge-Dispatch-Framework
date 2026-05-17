@@ -58,7 +58,16 @@
 - **全局配置 API**：`GET/PUT /internal/admin/v1/config` 集中式小带宽/P2P/预拉取配置管理
 - **P2P 拓扑 API**：`GET /internal/admin/v1/p2p/topology` P2P 网络拓扑数据
 - **Dashboard API**：`GET /internal/admin/v1/dashboard` 节点在线/离线统计
-- **配置扩展**：`Capabilities` 新增 `SupportsP2P`/`CurrentEgressMbps`/`CurrentIngressMbps`；`SmallBandwidthConfig` 统一管理小带宽优化配置
+- **配置扩展**：`Capabilities` 新增 `SupportsP2P`/`CurrentEgressMbps`/`CurrentIngressMbps`/`ShieldMode`；`SmallBandwidthConfig` 统一管理小带宽优化配置
+- **内容预热下发**：CP `POST /v1/tasks/prewarm` 将内容 Key 推送到所有活跃边缘节点，Edge Agent `/internal/push/prewarm` 接收并回源缓存
+- **控制平面管理面板**：`:8082` 端口独立 Admin Dashboard，集群概览/节点管理/预热下发
+- **大文件流式缓存**：>10MB 文件使用临时文件替代内存 buffer，WriteTimeout 提升至 300s
+- **节点公网 IP 自动检测**：`Reporter.detectPublicIP()` 自动探测公网 IP，支持 `EA_PUBLIC_HOST` 手动指定
+- **宽带指标实时上报**：`BandwidthMeter` 统计出入站 Mbps，在 /metrics 和状态页展示
+- **一键安装脚本**：`install.sh` 交互式 + 命令行模式，支持 Control Plane / Edge Agent / Origin 三角色
+- **UI 全面重设计**：深色主题 + 毛玻璃 + 渐变背景 + 微交互动画，移动端响应式
+- **IPv6 双栈支持**：监听失败时自动回退 `[::]:port` 启用 IPv4/v6 双栈
+- **Origin Shield 模式**：`EA_SHIELD_MODE=true` 标记为中间缓存层，调度 +20 分，P2P 优先，不限速
 
 ### 计划
 - HTTP/3 QUIC 支持

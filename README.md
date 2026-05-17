@@ -20,6 +20,10 @@
 | **Web Admin Console** | Visual management panel for nodes, dispatch, and data monitoring | [Webmanager](https://github.com/im10furry/Edge-Dispatch-Framework-Webmanager) |
 | **HTTP/3 / QUIC** | Next-gen UDP-based transport | ✅ v0.6 |
 | **Small Bandwidth Optimization** | Bandwidth-aware scheduling, P2P peer fetch, smart prefetch, rate limiting, local config UI | ✅ v0.6 |
+| **Content Prewarming** | Push content keys to all edge nodes proactively via admin dashboard | ✅ v0.6 |
+| **Origin Shield Mode** | Layered cache architecture with shield node priority in scheduling | ✅ v0.6 |
+| **IPv6 Dual-Stack** | IPv4/IPv6 dual-stack listen with auto fallback | ✅ v0.6 |
+| **One-Click Install** | Interactive install script for CP/EA/Origin deployment | ✅ v0.6 |
 
 ## Architecture Overview
 
