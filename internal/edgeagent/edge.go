@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/darkinno/edge-dispatch-framework/internal/config"
+	"github.com/darkinno/edge-dispatch-framework/internal/edgeagent/localconfig"
 	"github.com/darkinno/edge-dispatch-framework/internal/streaming"
 	"github.com/darkinno/edge-dispatch-framework/internal/tunnel"
 )
@@ -19,8 +20,9 @@ type Edge struct {
 	server       *Server
 	reporter     *Reporter
 	tunnelClient *tunnel.Client // nil if not in NAT mode
-	prefetchMgr  *streaming.PrefetchManager
+	prefetchMgr   *streaming.PrefetchManager
 	smartPrefetch *SmartPrefetchManager
+	localConfig   *localconfig.LocalConfigServer
 }
 
 // New creates a new Edge agent, initializing all sub-components.
@@ -97,6 +99,9 @@ func New(cfg *config.EdgeAgentConfig) (*Edge, error) {
 		)
 	}
 
+	// Initialize local config web UI (v0.6+)
+	edge.localConfig = localconfig.NewLocalConfigServer(cfg)
+
 	return edge, nil
 }
 
@@ -145,6 +150,11 @@ func (e *Edge) Start(ctx context.Context) error {
 		e.smartPrefetch.Start()
 	}
 
+	// Start local config web UI (v0.6+)
+	if err := e.localConfig.Start(); err != nil {
+		slog.Warn("local config UI failed to start", "err", err)
+	}
+
 	// Start the HTTP server (blocks until ctx cancelled)
 	if err := e.server.Start(ctx); err != nil {
 		return fmt.Errorf("start server: %w", err)
@@ -174,6 +184,13 @@ func (e *Edge) Shutdown(ctx context.Context) error {
 	// Stop smart prefetch manager (v0.6+)
 	if e.smartPrefetch != nil {
 		e.smartPrefetch.Stop()
+	}
+
+	// Shutdown local config UI
+	if e.localConfig != nil {
+		if err := e.localConfig.Shutdown(ctx); err != nil {
+			slog.Warn("local config shutdown error", "err", err)
+		}
 	}
 
 	if err := e.server.Shutdown(ctx); err != nil {
