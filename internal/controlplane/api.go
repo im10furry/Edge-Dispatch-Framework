@@ -178,6 +178,7 @@ func NewAPI(registry *Registry, heartbeat *Heartbeat, scheduler *Scheduler, cfg 
 		r.Get("/v1/nodes/{nodeID}", api.handleGetNode)
 		r.Delete("/v1/nodes/{nodeID}", api.handleRevokeNode)
 		r.Post("/v1/dispatch/resolve", api.handleDispatch)
+		r.Post("/v1/tasks/prewarm", api.scheduler.handleAdminPrewarm)
 		r.Get("/obj/*", api.handleObjectIngress)
 	})
 	if cfg.Admin.Enabled {
@@ -199,6 +200,8 @@ func NewAPI(registry *Registry, heartbeat *Heartbeat, scheduler *Scheduler, cfg 
 				r.Get("/p2p/topology", api.scheduler.handleAdminP2PTopology)
 				// Dashboard (v0.6+)
 				r.Get("/dashboard", api.scheduler.handleAdminDashboard)
+				// Prewarm push (v0.6+)
+				r.Post("/tasks/prewarm", api.scheduler.handleAdminPrewarm)
 			})
 		}
 	}

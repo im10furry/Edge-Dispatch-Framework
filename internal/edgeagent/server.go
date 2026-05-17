@@ -122,6 +122,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/obj/", s.handleObject)
 	mux.HandleFunc("/internal/p2p/obj/", s.handleP2PFetch)
+	mux.HandleFunc("/internal/push/prewarm", s.handlePrewarm)
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	return withRecovery(withCommonHeaders(withGzipCompression(mux)))
@@ -667,6 +668,55 @@ func (s *Server) GetMetricsDelta() MetricsSnapshot {
 
 	s.lastSnapshot = current
 	return delta
+}
+
+func (s *Server) handlePrewarm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Keys []string `json:"keys"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Keys) == 0 {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	type result struct {
+		Key    string `json:"key"`
+		Status string `json:"status"`
+		Size   int64  `json:"size,omitempty"`
+		Error  string `json:"error,omitempty"`
+	}
+
+	results := make([]result, 0, len(req.Keys))
+	for _, key := range req.Keys {
+		fr, err := s.fetcher.Fetch(r.Context(), key)
+		if err != nil {
+			results = append(results, result{Key: key, Status: "failed", Error: err.Error()})
+			continue
+		}
+		var buf bytes.Buffer
+		n, cpErr := io.Copy(&buf, fr.Body)
+		fr.Body.Close()
+		if cpErr != nil {
+			results = append(results, result{Key: key, Status: "failed", Error: cpErr.Error()})
+			continue
+		}
+		if putErr := s.cache.Put(context.Background(), key, &buf, n); putErr != nil {
+			results = append(results, result{Key: key, Status: "cached_partial", Size: n, Error: putErr.Error()})
+			continue
+		}
+		slog.Info("prewarmed", "key", key, "size", n)
+		results = append(results, result{Key: key, Status: "cached", Size: n})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"total":   len(req.Keys),
+		"results": results,
+	})
 }
 
 func (s *Server) handleP2PFetch(w http.ResponseWriter, r *http.Request) {

@@ -1,9 +1,14 @@
 package controlplane
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/darkinno/edge-dispatch-framework/internal/models"
 )
@@ -201,4 +206,99 @@ func (s *Scheduler) handleAdminDashboard(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dashboard)
+}
+
+func (s *Scheduler) handleAdminPrewarm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+	var req struct {
+		Keys   []string `json:"keys"`
+		NodeID string   `json:"node_id,omitempty"`
+	}
+	if err := json.Unmarshal(bodyBytes, &req); err != nil || len(req.Keys) == 0 {
+		slog.Warn("prewarm bad request", "body", string(bodyBytes), "err", err)
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	nodes, err := s.nodeCache.GetActiveNodes(r.Context())
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	type nodeResult struct {
+		NodeID  string `json:"node_id"`
+		Status  string `json:"status"`
+		Error   string `json:"error,omitempty"`
+	}
+
+	var mu sync.Mutex
+	results := make([]nodeResult, 0)
+	var wg sync.WaitGroup
+
+	for _, n := range nodes {
+		if req.NodeID != "" && n.NodeID != req.NodeID {
+			continue
+		}
+		if n.Status != models.NodeStatusActive && n.Status != models.NodeStatusDegraded {
+			continue
+		}
+		if len(n.Endpoints) == 0 {
+			continue
+		}
+
+		wg.Add(1)
+		go func(node *models.Node) {
+			defer wg.Done()
+			endpoint := node.Endpoints[0].URL()
+			body, _ := json.Marshal(map[string][]string{"keys": req.Keys})
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			httpReq, _ := http.NewRequestWithContext(ctx, "POST",
+				endpoint+"/internal/push/prewarm", bytes.NewReader(body))
+			httpReq.Header.Set("Content-Type", "application/json")
+
+			client := &http.Client{Timeout: 60 * time.Second}
+			resp, err := client.Do(httpReq)
+			if err != nil {
+				mu.Lock()
+				results = append(results, nodeResult{NodeID: node.NodeID, Status: "failed", Error: err.Error()})
+				mu.Unlock()
+				return
+			}
+			defer resp.Body.Close()
+
+			var pushResult map[string]interface{}
+			io.ReadAll(io.LimitReader(resp.Body, 65536))
+			json.NewDecoder(bytes.NewReader(nil)).Decode(&pushResult)
+			_ = pushResult
+
+			mu.Lock()
+			results = append(results, nodeResult{NodeID: node.NodeID, Status: "pushed"})
+			mu.Unlock()
+		}(n)
+	}
+	wg.Wait()
+
+	slog.Info("prewarm task completed",
+		"keys", len(req.Keys),
+		"nodes", len(results),
+	)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"keys_total":    len(req.Keys),
+		"nodes_pushed":  len(results),
+		"node_results":  results,
+	})
 }

@@ -1,9 +1,11 @@
 package adminui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -54,8 +56,10 @@ func New(cfg *config.ControlPlaneConfig, metrics MetricsProvider) *AdminUI {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", ui.handleIndex)
 	mux.HandleFunc("/nodes", ui.handleNodes)
+	mux.HandleFunc("/prewarm", ui.handlePrewarmPage)
 	mux.HandleFunc("/api/dashboard", ui.handleAPIDashboard)
 	mux.HandleFunc("/api/nodes", ui.handleAPINodes)
+	mux.HandleFunc("/api/prewarm", ui.handleAPIPrewarm)
 
 	ui.httpSrv = &http.Server{
 		Handler:           mux,
@@ -84,6 +88,11 @@ func (ui *AdminUI) Shutdown(ctx context.Context) error {
 func (ui *AdminUI) handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, cpHeader+cpDashboard+cpFooter)
+}
+
+func (ui *AdminUI) handlePrewarmPage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, cpHeader+cpPrewarm+cpFooter)
 }
 
 func (ui *AdminUI) handleNodes(w http.ResponseWriter, r *http.Request) {
@@ -145,6 +154,35 @@ func (ui *AdminUI) handleAPINodes(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(summaries)
+}
+
+func (ui *AdminUI) handleAPIPrewarm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, _ := io.ReadAll(r.Body)
+	port := portFromAddr(ui.cfg.ListenAddr)
+	req, _ := http.NewRequest("POST", "http://localhost:"+port+"/v1/tasks/prewarm", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ui.cfg.TokenSecret)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		http.Error(w, "prewarm failed: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
+}
+
+func portFromAddr(addr string) string {
+	_, port, _ := net.SplitHostPort(addr)
+	if port == "" {
+		return "8080"
+	}
+	return port
 }
 
 const cpHeader = `<!DOCTYPE html>
@@ -217,7 +255,7 @@ td .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margi
 <body>
 <header>
   <div class="logo"><div class="dot"></div><h1>Edge Dispatch 控制平面</h1></div>
-  <nav><a href="/">仪表盘</a><a href="/nodes">节点管理</a></nav>
+  <nav><a href="/">仪表盘</a><a href="/nodes">节点管理</a><a href="/prewarm">预热下发</a></nav>
 </header>
 <main>
 `
@@ -284,5 +322,40 @@ async function load() {
 }
 load();
 setInterval(load, 5000);
+</script>
+`
+
+const cpPrewarm = `
+<div class="card">
+  <h2>&#128293; 内容预热下发</h2>
+  <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">将指定内容主动推送到所有活跃边缘节点，提前缓存热门资源。</p>
+  <div class="form-group"><label>资源 Key 列表（每行一个）</label>
+  <textarea id="keys" rows="6" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;font-family:monospace;resize:vertical;outline:none" placeholder="test_1mb.bin&#10;video/stream.m3u8"></textarea></div>
+  <div class="form-group" style="margin-top:12px"><label>目标节点（留空 = 全部活跃节点）</label><input type="text" id="nodeId" placeholder="留空推送全部节点" style="width:100%" /></div>
+  <div class="btn-group"><button class="btn btn-primary" onclick="doPrewarm()" id="btnPrewarm">&#128640; 开始预热下发</button></div>
+  <div id="result" style="margin-top:12px"></div>
+  <div id="log" style="margin-top:16px;font-family:monospace;font-size:12px;color:var(--text-muted)"></div>
+</div>
+<script>
+async function doPrewarm() {
+  var keys = document.getElementById('keys').value.split('\n').map(function(k){return k.trim()}).filter(function(k){return k.length>0});
+  if (keys.length===0) { return; }
+  var btn = document.getElementById('btnPrewarm');
+  btn.disabled = true; btn.textContent = '下发中...';
+  document.getElementById('result').innerHTML = '<div class="alert alert-success" style="opacity:0.6">正在推送到边缘节点...</div>';
+  try {
+    var r = await fetch('/api/prewarm', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({keys:keys,node_id:document.getElementById('nodeId').value})});
+    var d = await r.json();
+    var ok = (d.node_results||[]).filter(function(n){return n.status==='pushed'}).length;
+    var fail = (d.node_results||[]).length - ok;
+    document.getElementById('result').innerHTML = '<div class="alert alert-success">&#10003; '+d.keys_total+' 个 Key → '+ok+' 个节点成功'+(fail>0?'，'+fail+' 失败':'')+'</div>';
+    var logHtml = '';
+    (d.node_results||[]).forEach(function(n){logHtml+='<div style="padding:3px 0">['+n.node_id.substring(0,12)+'] '+(n.status==='pushed'?'&#9989; ':'&#10060; ')+n.status+' '+(n.error||'')+'</div>'});
+    document.getElementById('log').innerHTML = logHtml;
+  } catch(e) {
+    document.getElementById('result').innerHTML = '<div class="alert alert-error">&#10007; '+e.message+'</div>';
+  }
+  btn.disabled = false; btn.textContent = '开始预热下发';
+}
 </script>
 `
