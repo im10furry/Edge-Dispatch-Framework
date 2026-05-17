@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -75,6 +76,7 @@ type Server struct {
 	listener     net.Listener
 	streamH      *streaming.Handler
 	promMetrics  *promMetrics
+	bwMeter      *BandwidthMeter
 }
 
 type promMetrics struct {
@@ -98,6 +100,7 @@ func NewServer(cache *Cache, fetcher *Fetcher, cfg *config.EdgeAgentConfig) *Ser
 		fetcher: fetcher,
 		cfg:     cfg,
 		signer:  auth.NewSigner(cfg.NodeToken),
+		bwMeter: NewBandwidthMeter(),
 		promMetrics: &promMetrics{
 			requestsTotal:    metrics.NewCounter("edge_requests_total", "Total number of requests"),
 			cacheHitsTotal:   metrics.NewCounter("edge_cache_hits_total", "Total number of cache hits"),
@@ -285,6 +288,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) handleObject(w http.ResponseWriter, r *http.Request) {
 	s.metrics.requests.Add(1)
 
+	// Track ingress
+	if r.ContentLength > 0 {
+		s.bwMeter.AddIn(r.ContentLength)
+	}
+
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		s.metrics.errors.Add(1)
@@ -367,6 +375,7 @@ func (s *Server) handleObject(w http.ResponseWriter, r *http.Request) {
 				})
 				n := int64(buf.Len())
 				s.metrics.bytesSent.Add(n)
+				s.bwMeter.AddOut(n)
 				go func() {
 					if err := s.cache.Put(context.Background(), key, &buf, n); err != nil {
 						slog.Debug("cache put failed", "key", key, "err", err)
@@ -376,12 +385,14 @@ func (s *Server) handleObject(w http.ResponseWriter, r *http.Request) {
 		} else if fr.ContentLength > 0 {
 			s.serveFromFetchResult(w, r, fr)
 			s.metrics.bytesSent.Add(fr.ContentLength)
+			s.bwMeter.AddOut(fr.ContentLength)
 		} else {
 			n, err := io.Copy(w, fr.Body)
 			if err != nil {
 				slog.Debug("write fetched body failed", "key", key, "err", err)
 			}
 			s.metrics.bytesSent.Add(n)
+			s.bwMeter.AddOut(n)
 		}
 		return
 	}
@@ -404,6 +415,7 @@ func (s *Server) handleObject(w http.ResponseWriter, r *http.Request) {
 			slog.Debug("write cached body failed", "key", key, "err", err)
 		}
 		s.metrics.bytesSent.Add(n)
+		s.bwMeter.AddOut(n)
 	}
 }
 
@@ -466,6 +478,7 @@ func (s *Server) serveAndCacheLarge(w http.ResponseWriter, r *http.Request, key 
 		return
 	}
 	s.metrics.bytesSent.Add(written)
+	s.bwMeter.AddOut(written)
 
 	go func() {
 		defer os.Remove(tmpPath)
@@ -495,6 +508,7 @@ func (s *Server) serveRangeFromCache(w http.ResponseWriter, r *http.Request, rea
 			slog.Debug("write cached fallback body failed", "key", key, "err", err)
 		}
 		s.metrics.bytesSent.Add(n)
+		s.bwMeter.AddOut(n)
 		return
 	}
 
@@ -520,6 +534,7 @@ func (s *Server) serveRangeFromCache(w http.ResponseWriter, r *http.Request, rea
 		slog.Debug("write cached range body failed", "key", key, "err", err)
 	}
 	s.metrics.bytesSent.Add(rangeLen)
+	s.bwMeter.AddOut(rangeLen)
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
@@ -534,6 +549,7 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	cacheStats := s.cache.Stats()
+	ingress, egress := s.bwMeter.Snapshot()
 
 	if s.promMetrics != nil {
 		s.promMetrics.addDeltas(
@@ -546,15 +562,22 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		s.promMetrics.cacheSizeGauge.Set(float64(cacheStats.Size))
 	}
 
-	// Serve Prometheus format by default; JSON on ?format=json
 	if r.URL.Query().Get("format") == "json" {
 		data := map[string]interface{}{
-			"requests":     s.metrics.requests.Load(),
-			"cache_hits":   s.metrics.cacheHits.Load(),
-			"cache_misses": s.metrics.cacheMisses.Load(),
-			"bytes_sent":   s.metrics.bytesSent.Load(),
-			"errors":       s.metrics.errors.Load(),
-			"cache":        cacheStats,
+			"requests":       s.metrics.requests.Load(),
+			"cache_hits":     s.metrics.cacheHits.Load(),
+			"cache_misses":   s.metrics.cacheMisses.Load(),
+			"bytes_sent":     s.metrics.bytesSent.Load(),
+			"errors":         s.metrics.errors.Load(),
+			"bandwidth": map[string]float64{
+				"ingress_mbps": ingress,
+				"egress_mbps":  egress,
+			},
+			"cpu": map[string]interface{}{
+				"goroutines": runtime.NumGoroutine(),
+				"num_cpu":    runtime.NumCPU(),
+			},
+			"cache": cacheStats,
 		}
 		if s.streamH != nil {
 			data["streaming"] = s.streamH.Metrics()
@@ -603,6 +626,7 @@ func (s *Server) CacheHits() int64    { return s.metrics.cacheHits.Load() }
 func (s *Server) CacheMisses() int64  { return s.metrics.cacheMisses.Load() }
 func (s *Server) BytesSent() int64    { return s.metrics.bytesSent.Load() }
 func (s *Server) ErrorCount() int64   { return s.metrics.errors.Load() }
+func (s *Server) BWMeter() *BandwidthMeter { return s.bwMeter }
 
 func (s *Server) GetMetricsSnapshot() MetricsSnapshot {
 	s.snapshotMu.Lock()
@@ -694,6 +718,7 @@ func (s *Server) handleStreamingRequest(w http.ResponseWriter, r *http.Request, 
 		s.metrics.cacheMisses.Add(1)
 	}
 	s.metrics.bytesSent.Add(int64(len(data)))
+	s.bwMeter.AddOut(int64(len(data)))
 
 	streaming.ServeStreamingResponse(w, data, fromCache)
 }
