@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
+	"os"
 	"time"
 
+	"github.com/darkinno/edge-dispatch-framework/internal/autotls"
 	"github.com/darkinno/edge-dispatch-framework/internal/config"
 	"github.com/darkinno/edge-dispatch-framework/internal/edgeagent/localconfig"
 	"github.com/darkinno/edge-dispatch-framework/internal/streaming"
@@ -55,6 +58,26 @@ func New(cfg *config.EdgeAgentConfig) (*Edge, error) {
 			"window_size", cfg.Streaming.WindowSize,
 			"prefetch_count", cfg.Streaming.PrefetchCount,
 		)
+	}
+
+	// Auto-generate TLS certificate for IP-based endpoints (v0.7+)
+	if cfg.TLSAutoCert {
+		if err := os.MkdirAll(cfg.TLSCertDir, 0o700); err != nil {
+			slog.Warn("failed to create TLS cert dir", "dir", cfg.TLSCertDir, "err", err)
+		} else {
+			ips := collectLocalIPs()
+			certFile := cfg.TLSCertDir + "/cert.pem"
+			keyFile := cfg.TLSCertDir + "/key.pem"
+			_, err := autotls.LoadOrGenerate(ips, nil, certFile, keyFile)
+			if err != nil {
+				slog.Warn("failed to generate TLS cert", "err", err)
+			} else {
+				cfg.TLSCertFile = certFile
+				cfg.TLSKeyFile = keyFile
+				cfg.TLSEnabled = true
+				slog.Info("TLS auto-cert generated", "ips", fmtIPs(ips), "cert", certFile)
+			}
+		}
 	}
 
 	// Initialize tunnel client if in NAT mode
@@ -210,4 +233,28 @@ func (e *Edge) TunnelID() string {
 		return e.tunnelClient.TunnelID()
 	}
 	return ""
+}
+
+func collectLocalIPs() []net.IP {
+	var ips []net.IP
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ips
+	}
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok {
+			if ip4 := ipnet.IP.To4(); ip4 != nil && !ip4.IsLoopback() {
+				ips = append(ips, ip4)
+			}
+		}
+	}
+	return ips
+}
+
+func fmtIPs(ips []net.IP) []string {
+	s := make([]string, len(ips))
+	for i, ip := range ips {
+		s[i] = ip.String()
+	}
+	return s
 }

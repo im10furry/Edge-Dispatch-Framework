@@ -105,6 +105,12 @@ type EdgeAgentConfig struct {
 	PublicHost               string
 	Region                   string
 	ISP                      string
+	WSProxyEnabled           bool
+	GRPCProxyEnabled         bool
+	TLSAutoCert              bool
+	TLSCertDir               string
+	TLSEnabled               bool
+	ShieldMode               bool
 }
 
 // OriginConfig holds origin server configuration.
@@ -253,6 +259,11 @@ func LoadEdgeAgent() *EdgeAgentConfig {
 		PublicHost:               getEnv("EA_PUBLIC_HOST", ""),
 		Region:                   getEnv("EA_REGION", ""),
 		ISP:                      getEnv("EA_ISP", ""),
+		WSProxyEnabled:           boolEnv("EA_WS_PROXY_ENABLED", true),
+		GRPCProxyEnabled:         boolEnv("EA_GRPC_PROXY_ENABLED", true),
+		TLSEnabled:               boolEnv("EA_TLS_ENABLED", false),
+		TLSAutoCert:              boolEnv("EA_TLS_AUTO_CERT", false),
+		TLSCertDir:               getEnv("EA_TLS_CERT_DIR", "/data/edf/tls"),
 	}
 	cfg.warnDefaults()
 	return cfg

@@ -77,6 +77,7 @@ type Server struct {
 	streamH      *streaming.Handler
 	promMetrics  *promMetrics
 	bwMeter      *BandwidthMeter
+	proxy        *ProxyHandler
 }
 
 type promMetrics struct {
@@ -101,6 +102,7 @@ func NewServer(cache *Cache, fetcher *Fetcher, cfg *config.EdgeAgentConfig) *Ser
 		cfg:     cfg,
 		signer:  auth.NewSigner(cfg.NodeToken),
 		bwMeter: NewBandwidthMeter(),
+		proxy:   NewProxyHandler(cfg.OriginURL, cfg.NodeToken, cfg.WSProxyEnabled, cfg.GRPCProxyEnabled),
 		promMetrics: &promMetrics{
 			requestsTotal:    metrics.NewCounter("edge_requests_total", "Total number of requests"),
 			cacheHitsTotal:   metrics.NewCounter("edge_cache_hits_total", "Total number of cache hits"),
@@ -211,6 +213,11 @@ func (s *Server) Start(ctx context.Context) error {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	addr := s.cfg.ListenAddr
+	if addr == "" {
+		addr = ":9090"
+	}
+
 	var ln net.Listener
 	var err error
 	if s.cfg.TLSCertFile != "" && s.cfg.TLSKeyFile != "" {
@@ -224,12 +231,16 @@ func (s *Server) Start(ctx context.Context) error {
 			SessionTicketsDisabled: false,
 		}
 		s.httpSrv.TLSConfig = tlsCfg
-		ln, err = tls.Listen("tcp", s.cfg.ListenAddr, tlsCfg)
+		ln, err = tls.Listen("tcp", addr, tlsCfg)
 	} else {
-		ln, err = net.Listen("tcp", s.cfg.ListenAddr)
+		ln, err = net.Listen("tcp", addr)
 	}
 	if err != nil {
-		return fmt.Errorf("listen %s: %w", s.cfg.ListenAddr, err)
+		// Retry with IPv6 dual-stack
+		ln, err = net.Listen("tcp", "[::]"+addr[strings.LastIndex(addr, ":"):])
+		if err != nil {
+			return fmt.Errorf("listen %s: %w", addr, err)
+		}
 	}
 	s.listener = ln
 
@@ -331,6 +342,12 @@ func (s *Server) handleObject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rangeHeader := r.Header.Get("Range")
+
+	// WebSocket / gRPC proxy interception
+	if s.proxy.IsWebSocket(r) || s.proxy.IsGRPC(r) {
+		s.proxy.ServeHTTP(w, r, key)
+		return
+	}
 
 	// Intercept streaming requests (v0.4)
 	if s.streamH != nil && s.streamH.IsStreamingRequest(key) {

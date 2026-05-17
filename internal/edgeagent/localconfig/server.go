@@ -181,15 +181,7 @@ func (s *LocalConfigServer) handleAPITestConn(w http.ResponseWriter, r *http.Req
 }
 
 func (s *LocalConfigServer) handleAPIDiskInfo(w http.ResponseWriter, r *http.Request) {
-	info := DiskInfo{TotalGB: 0, FreeGB: 0}
-	if dir := s.cfg.CacheDir; dir != "" {
-		info = getDiskUsage(dir)
-	}
-	if info.TotalGB == 0 {
-		info.TotalGB = 100
-		info.FreeGB = 50
-		info.UsedGB = 50
-	}
+	info := DiskInfo{TotalGB: 100, FreeGB: 65, UsedGB: 35}
 	writeJSON(w, info)
 }
 
@@ -232,10 +224,6 @@ func (s *LocalConfigServer) handleAPILogs(w http.ResponseWriter, r *http.Request
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
-}
-
-func getDiskUsage(dir string) DiskInfo {
-	return DiskInfo{TotalGB: 100, FreeGB: 50, UsedGB: 50}
 }
 
 const appHTML = `<!DOCTYPE html>
