@@ -100,7 +100,7 @@ func New(cfg *config.EdgeAgentConfig) (*Edge, error) {
 	}
 
 	// Initialize local config web UI (v0.6+)
-	edge.localConfig = localconfig.NewLocalConfigServer(cfg)
+	edge.localConfig = localconfig.NewLocalConfigServer(cfg, server)
 
 	return edge, nil
 }

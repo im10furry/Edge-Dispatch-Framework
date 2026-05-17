@@ -16,6 +16,7 @@ import (
 	"github.com/darkinno/edge-dispatch-framework/internal/config"
 	"github.com/darkinno/edge-dispatch-framework/internal/contentindex"
 	"github.com/darkinno/edge-dispatch-framework/internal/controlplane"
+	"github.com/darkinno/edge-dispatch-framework/internal/controlplane/adminui"
 	"github.com/darkinno/edge-dispatch-framework/internal/store"
 )
 
@@ -97,6 +98,13 @@ func main() {
 
 	heartbeat.Start(ctxBg)
 	prober.Start(ctxBg)
+
+	// Start admin dashboard UI (v0.6+)
+	adminUI := adminui.New(cfg, nodeCache)
+	if err := adminUI.Start(); err != nil {
+		logger.Warn("admin UI failed to start", "error", err)
+	}
+	defer adminUI.Shutdown(context.Background())
 
 	// Start HTTP server
 	combinedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

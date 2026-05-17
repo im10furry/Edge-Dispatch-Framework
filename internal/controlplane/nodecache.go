@@ -60,3 +60,15 @@ func (c *NodeCache) Invalidate() {
 	c.nodes.Store([]*models.Node(nil))
 	c.cachedAt.Store(0)
 }
+
+func (c *NodeCache) GetNodes() ([]models.Node, error) {
+	nodes, err := c.GetActiveNodes(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	result := make([]models.Node, len(nodes))
+	for i, n := range nodes {
+		result[i] = *n
+	}
+	return result, nil
+}

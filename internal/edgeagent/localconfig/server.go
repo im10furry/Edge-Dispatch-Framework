@@ -14,7 +14,8 @@ import (
 )
 
 type LocalConfigServer struct {
-	cfg    *config.EdgeAgentConfig
+	cfg     *config.EdgeAgentConfig
+	metrics MetricsSource
 	diskInfo DiskInfo
 	httpSrv *http.Server
 }
@@ -45,19 +46,34 @@ type ConfigResponse struct {
 }
 
 type StatusResponse struct {
-	Uptime          string `json:"uptime"`
-	CacheHitRatio   float64 `json:"cache_hit_ratio"`
-	CacheItems      int64   `json:"cache_items"`
-	CacheSizeGB     float64 `json:"cache_size_gb"`
-	CurrentEgressMbps float64 `json:"current_egress_mbps"`
+	Uptime           string  `json:"uptime"`
+	CacheHitRatio    float64 `json:"cache_hit_ratio"`
+	CacheHits        int64   `json:"cache_hits"`
+	CacheMisses      int64   `json:"cache_misses"`
+	CacheItems       int64   `json:"cache_items"`
+	CacheSizeGB      float64 `json:"cache_size_gb"`
+	EgressMbps       float64 `json:"egress_mbps"`
+	IngressMbps      float64 `json:"ingress_mbps"`
 	BandwidthUsage   float64 `json:"bandwidth_usage"`
-	Connections     int64   `json:"connections"`
+	Connections      int64   `json:"connections"`
+	Requests         int64   `json:"requests"`
+	BytesSent        int64   `json:"bytes_sent"`
+}
+
+type MetricsSource interface {
+	RequestCount() int64
+	CacheHits() int64
+	CacheMisses() int64
+	BytesSent() int64
+	ErrorCount() int64
+	GetCacheStats() (size int64, maxGB int64, itemCount int64)
+	GetBandwidth() (ingress, egress float64)
 }
 
 var startTime = time.Now()
 
-func NewLocalConfigServer(cfg *config.EdgeAgentConfig) *LocalConfigServer {
-	s := &LocalConfigServer{cfg: cfg}
+func NewLocalConfigServer(cfg *config.EdgeAgentConfig, metrics MetricsSource) *LocalConfigServer {
+	s := &LocalConfigServer{cfg: cfg, metrics: metrics}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/setup", s.handleSetup)
@@ -247,59 +263,26 @@ func (s *LocalConfigServer) handleAPIDiskInfo(w http.ResponseWriter, r *http.Req
 }
 
 func (s *LocalConfigServer) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
-	type statusResp struct {
-		Uptime          string  `json:"uptime"`
-		CacheHitRatio   float64 `json:"cache_hit_ratio"`
-		CacheMB         float64 `json:"cache_mb"`
-		TotalRequests   int64   `json:"total_requests"`
-		TotalBytes      int64   `json:"total_bytes"`
-		EgressMbps      float64 `json:"egress_mbps"`
-		IngressMbps     float64 `json:"ingress_mbps"`
-		Goroutines      int     `json:"goroutines"`
-		NumCPU          int     `json:"num_cpu"`
-		MaxUplinkMbps   int64   `json:"max_uplink_mbps"`
+	status := StatusResponse{
+		Uptime: time.Since(startTime).Round(time.Second).String(),
 	}
-
-	status := statusResp{
-		Uptime:        time.Since(startTime).Round(time.Second).String(),
-		MaxUplinkMbps: s.cfg.MaxUplinkMbps,
-	}
-
-	// Try to fetch real metrics from the edge agent
-	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get("http://localhost:9090/metrics?format=json")
-	if err == nil {
-		defer resp.Body.Close()
-		var data map[string]interface{}
-		if json.NewDecoder(resp.Body).Decode(&data) == nil {
-			if v, ok := data["cache_hits"].(float64); ok {
-				hits := int64(v)
-				if v2, ok := data["cache_misses"].(float64); ok {
-					misses := int64(v2)
-					if hits+misses > 0 {
-						status.CacheHitRatio = float64(hits) / float64(hits+misses)
-					}
-				}
-			}
-			if v, ok := data["requests"].(float64); ok {
-				status.TotalRequests = int64(v)
-			}
-			if v, ok := data["bytes_sent"].(float64); ok {
-				status.TotalBytes = int64(v)
-			}
-			if bw, ok := data["bandwidth"].(map[string]interface{}); ok {
-				if v, ok := bw["egress_mbps"].(float64); ok {
-					status.EgressMbps = v
-				}
-				if v, ok := bw["ingress_mbps"].(float64); ok {
-					status.IngressMbps = v
-				}
-			}
-			if cache, ok := data["cache"].(map[string]interface{}); ok {
-				if v, ok := cache["size"].(float64); ok {
-					status.CacheMB = v / 1024 / 1024
-				}
-			}
+	if s.metrics != nil {
+		cacheSize, cacheMax, cacheItems := s.metrics.GetCacheStats()
+		status.CacheSizeGB = float64(cacheSize) / (1024 * 1024 * 1024)
+		status.CacheItems = cacheItems
+		hits := s.metrics.CacheHits()
+		misses := s.metrics.CacheMisses()
+		status.CacheHits = hits
+		status.CacheMisses = misses
+		total := hits + misses
+		if total > 0 {
+			status.CacheHitRatio = float64(hits) / float64(total)
+		}
+		status.Requests = s.metrics.RequestCount()
+		status.BytesSent = s.metrics.BytesSent()
+		status.EgressMbps, status.IngressMbps = s.metrics.GetBandwidth()
+		if cacheMax > 0 {
+			status.BandwidthUsage = float64(cacheSize) / float64(cacheMax*1024*1024*1024) * 100
 		}
 	}
 	writeJSON(w, status)
@@ -804,36 +787,60 @@ const statusPage = `
   <h2>&#128202; 节点运行状态</h2>
   <div class="metric-grid">
     <div class="metric-card"><div class="value" id="uptime">--</div><div class="label">&#9202; 运行时长</div></div>
+    <div class="metric-card"><div class="value" id="requests">--</div><div class="label">&#128260; 请求总数</div></div>
     <div class="metric-card"><div class="value" id="cacheHitRatio">--</div><div class="label">&#127919; 缓存命中率</div></div>
-    <div class="metric-card"><div class="value" id="cacheSize">--</div><div class="label">&#128190; 缓存大小 (GB)</div></div>
-    <div class="metric-card"><div class="value" id="egress">--</div><div class="label">&#11014; 当前出站 (Mbps)</div></div>
+    <div class="metric-card"><div class="value" id="cacheItems">--</div><div class="label">&#128190; 缓存条目</div></div>
   </div>
 </div>
 <div class="card reveal delay-1">
-  <h2>&#128200; 带宽使用</h2>
+  <h2>&#128200; 带宽监控</h2>
+  <div class="row">
+    <div class="col" style="text-align:center">
+      <div style="font-size:28px;font-weight:800;color:var(--success)" id="egress">--</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">&#11014; 出站 (Mbps)</div>
+    </div>
+    <div class="col" style="text-align:center">
+      <div style="font-size:28px;font-weight:800;color:var(--primary)" id="ingress">--</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">&#11015; 入站 (Mbps)</div>
+    </div>
+    <div class="col" style="text-align:center">
+      <div style="font-size:28px;font-weight:800;color:#fff" id="bytesSent">--</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">&#128229; 已传输</div>
+    </div>
+  </div>
+</div>
+<div class="card reveal delay-2">
+  <h2>&#128451; 缓存空间</h2>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-    <span style="font-size:13px;color:var(--text-secondary)">带宽使用率</span>
+    <span style="font-size:13px;color:var(--text-secondary)">缓存使用率</span>
     <span id="bwPercent" style="font-size:16px;font-weight:700;color:var(--primary)">--%</span>
   </div>
   <div class="bar"><div class="bar-fill good" id="bwBar" style="width:0%"></div></div>
+  <div style="font-size:12px;color:var(--text-muted);margin-top:6px"><span id="cacheSize">--</span> GB / <span id="cacheMax">--</span> GB</div>
 </div>
 <script>
+function fmtBytes(b) { if (!b) return '0 B'; var u=['B','KB','MB','GB','TB'], i=0; while(b>=1024&&i<4){b/=1024;i++;} return b.toFixed(1)+' '+u[i]; }
 async function loadStatus() {
   try {
     var r = await fetch('/api/status');
     var d = await r.json();
     document.getElementById('uptime').textContent = d.uptime||'--';
+    document.getElementById('requests').textContent = (d.requests||0).toLocaleString();
     document.getElementById('cacheHitRatio').textContent = ((d.cache_hit_ratio||0)*100).toFixed(1)+'%';
-    document.getElementById('cacheSize').textContent = (d.cache_size_gb||0).toFixed(1);
-    document.getElementById('egress').textContent = (d.current_egress_mbps||0).toFixed(1);
+    document.getElementById('cacheItems').textContent = (d.cache_items||0).toLocaleString();
+    document.getElementById('egress').textContent = (d.egress_mbps||0).toFixed(1);
+    document.getElementById('ingress').textContent = (d.ingress_mbps||0).toFixed(1);
+    document.getElementById('bytesSent').textContent = fmtBytes(d.bytes_sent||0);
     var bw = Math.min(100, Math.max(0, (d.bandwidth_usage||0)));
     document.getElementById('bwPercent').textContent = Math.round(bw)+'%';
     var bar = document.getElementById('bwBar');
     bar.style.width = bw+'%';
     bar.className = 'bar-fill ' + (bw > 80 ? 'danger' : bw > 50 ? 'warn' : 'good');
+    document.getElementById('cacheSize').textContent = (d.cache_size_gb||0).toFixed(2);
+    document.getElementById('cacheMax').textContent = '10';
   } catch(e) {}
 }
 loadStatus();
-setInterval(loadStatus, 10000);
+setInterval(loadStatus, 5000);
 </script>
 `
