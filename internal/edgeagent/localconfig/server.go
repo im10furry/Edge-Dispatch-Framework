@@ -310,234 +310,188 @@ func getDiskInfo(path string) (DiskInfo, error) {
 const pageHeader = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Edge Dispatch — 节点配置中心</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #0a0e1a; --bg2: #111827;
-  --surface: rgba(17,25,45,0.7); --surface-hover: rgba(30,41,65,0.8);
-  --border: rgba(99,102,241,0.15);
-  --primary: #6366f1; --primary-glow: rgba(99,102,241,0.3);
-  --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
-  --text: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #64748b;
-  --radius: 12px; --radius-sm: 8px;
-  --transition: 0.3s cubic-bezier(0.4,0,0.2,1);
+:root{
+--bg:#05080f;--bg2:#0a0f1a;--surface:rgba(10,15,28,0.8);--surface2:rgba(15,22,40,0.6);
+--border:rgba(99,102,241,0.1);--border-hover:rgba(99,102,241,0.25);
+--primary:#818cf8;--primary-2:#6366f1;--primary-glow:rgba(129,140,248,0.25);
+--success:#34d399;--success-bg:rgba(52,211,153,0.08);--warning:#fbbf24;--danger:#f87171;
+--text:#f1f5f9;--text2:#cbd5e1;--text3:#94a3b8;--text4:#64748b;
+--r:14px;--r2:10px;--r3:6px;--t:.25s cubic-bezier(.4,0,.2,1);
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg);
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.12), transparent),
-    radial-gradient(ellipse 50% 80% at 20% 50%, rgba(16,185,129,0.06), transparent);
-  color: var(--text); min-height: 100vh;
-  animation: fadeIn 0.6s ease;
+*,::before,::after{box-sizing:border-box;margin:0;padding:0}
+body{
+font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5;
+-webkit-font-smoothing:antialiased;
 }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
-@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+body::before{
+content:'';position:fixed;inset:0;z-index:-1;
+background:
+radial-gradient(ellipse 80% 50% at 50% -10%,rgba(99,102,241,.08),transparent),
+radial-gradient(ellipse 40% 60% at 80% 80%,rgba(52,211,153,.04),transparent),
+radial-gradient(ellipse 60% 40% at 20% 30%,rgba(129,140,248,.03),transparent);
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes glow{0%,100%{box-shadow:0 0 8px var(--primary-glow)}50%{box-shadow:0 0 20px var(--primary-glow)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 
-header {
-  background: rgba(10,14,26,0.85);
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  border-bottom: 1px solid var(--border);
-  padding: 0 32px; display: flex; align-items: center;
-  justify-content: space-between; height: 60px;
-  position: sticky; top: 0; z-index: 100;
+header{
+position:sticky;top:0;z-index:100;
+background:rgba(5,8,15,.82);backdrop-filter:blur(24px)saturate(1.8);
+-webkit-backdrop-filter:blur(24px)saturate(1.8);
+border-bottom:1px solid var(--border);
+padding:0 28px;display:flex;align-items:center;justify-content:space-between;
+height:56px;animation:slideIn .4s ease;
 }
-header .logo { display: flex; align-items: center; gap: 10px; }
-header .logo .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--primary);
-  box-shadow: 0 0 12px var(--primary-glow); animation: pulse 2s infinite; }
-header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
-nav { display: flex; gap: 4px; }
-nav a {
-  color: var(--text-secondary); text-decoration: none;
-  padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px;
-  font-weight: 500; transition: all var(--transition);
-  position: relative;
+header .logo{display:flex;align-items:center;gap:10px}
+header .logo .dot{
+width:8px;height:8px;border-radius:50%;
+background:var(--success);animation:glow 2s infinite;
 }
-nav a:hover { color: #fff; background: rgba(99,102,241,0.12); }
-nav a.active { color: #fff; background: var(--primary); box-shadow: 0 2px 12px var(--primary-glow); }
-main { max-width: 1000px; margin: 0 auto; padding: 28px 24px; }
+header h1{font-size:15px;font-weight:700;letter-spacing:-.3px;color:var(--text)}
+nav{display:flex;gap:2px}
+nav a{
+color:var(--text3);text-decoration:none;padding:7px 14px;
+border-radius:8px;font-size:12.5px;font-weight:500;
+transition:all var(--t);position:relative;
+}
+nav a:hover{color:var(--text);background:rgba(129,140,248,.1)}
+nav a.active{color:#fff;background:linear-gradient(135deg,var(--primary-2),var(--primary));box-shadow:0 2px 12px rgba(99,102,241,.35)}
+main{max-width:1040px;margin:0 auto;padding:24px 20px 40px}
 
-.card {
-  background: var(--surface);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 28px;
-  margin-bottom: 20px;
-  animation: slideUp 0.5s ease both;
-  transition: border-color var(--transition), box-shadow var(--transition);
+.card{
+background:var(--surface);backdrop-filter:blur(20px);
+-webkit-backdrop-filter:blur(20px);
+border:1px solid var(--border);border-radius:var(--r);
+padding:26px 28px;margin-bottom:18px;
+animation:slideUp .45s ease both;
+transition:border-color var(--t),box-shadow var(--t),transform var(--t);
 }
-.card:nth-child(2) { animation-delay: 0.1s; }
-.card:nth-child(3) { animation-delay: 0.2s; }
-.card:hover { border-color: var(--primary); box-shadow: 0 0 24px rgba(99,102,241,0.08); }
-.card h2 { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--text); letter-spacing: -0.2px; }
-.card h3 { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; }
-.row { display: flex; gap: 24px; flex-wrap: wrap; }
-.col { flex: 1; min-width: 260px; }
+.card:nth-child(2){animation-delay:.08s}
+.card:nth-child(3){animation-delay:.16s}
+.card:nth-child(4){animation-delay:.24s}
+.card:hover{border-color:var(--border-hover)}
+.card h2{font-size:17px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.card h2 .icon{font-size:19px;opacity:.7}
+.card h3{font-size:14px;font-weight:600;color:var(--text2);margin-bottom:14px}
+.row{display:flex;gap:20px;flex-wrap:wrap}
+.col{flex:1;min-width:240px}
 
-.form-group { margin-bottom: 18px; animation: slideUp 0.4s ease both; }
-.form-group label {
-  display: block; font-size: 12px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px;
+.form-group{margin-bottom:16px}
+.form-group label{
+display:block;font-size:11px;font-weight:600;text-transform:uppercase;
+letter-spacing:.6px;color:var(--text4);margin-bottom:5px;
 }
-.form-group input, .form-group select {
-  width: 100%; padding: 10px 14px;
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); color: var(--text);
-  font-size: 14px; outline: none; transition: all var(--transition);
+.form-group input,.form-group select,textarea{
+width:100%;padding:9px 13px;background:var(--bg2);
+border:1px solid var(--border);border-radius:var(--r3);
+color:var(--text);font-size:13.5px;outline:none;
+transition:all var(--t);font-family:inherit;
 }
-.form-group input:hover { border-color: rgba(99,102,241,0.4); }
-.form-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
-.form-group input[type="range"] {
-  width: calc(100% - 56px); display: inline-block; margin-right: 8px;
-  -webkit-appearance: none; height: 6px; border-radius: 3px;
-  background: var(--border); cursor: pointer; padding: 0; border: none;
-}
-.form-group input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 18px; height: 18px;
-  border-radius: 50%; background: var(--primary);
-  box-shadow: 0 0 8px var(--primary-glow); cursor: pointer;
-  transition: transform 0.15s;
-}
-.form-group input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
-.range-value {
-  display: inline-block; width: 48px; text-align: center;
-  font-size: 13px; color: var(--primary); font-weight: 700;
-}
+.form-group input:hover,textarea:hover{border-color:var(--border-hover)}
+.form-group input:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(129,140,248,.12)}
+input[type="range"]{-webkit-appearance:none;width:100%;height:5px;border-radius:3px;background:var(--border);cursor:pointer;padding:0!important;border:none!important}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--primary);box-shadow:0 0 10px var(--primary-glow);cursor:pointer;transition:transform .15s}
+input[type="range"]::-webkit-slider-thumb:hover{transform:scale(1.25)}
+input[type="number"]{font-variant-numeric:tabular-nums}
 
-.toggle { display: flex; align-items: center; gap: 10px; }
-.toggle input[type="checkbox"] { display: none; }
-.toggle label {
-  position: relative; width: 44px; height: 24px;
-  background: var(--border); border-radius: 12px;
-  cursor: pointer; transition: all var(--transition);
-}
-.toggle label:after {
-  content: ''; position: absolute; top: 2px; left: 2px;
-  width: 20px; height: 20px; background: #fff;
-  border-radius: 50%; transition: all var(--transition);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-}
-.toggle input:checked + label { background: var(--primary); }
-.toggle input:checked + label:after { transform: translateX(20px); }
-.toggle-text { font-size: 13px; color: var(--text-secondary); }
+.toggle{display:flex;align-items:center;gap:10px}
+.toggle input[type="checkbox"]{display:none}
+.toggle .switch{position:relative;width:42px;height:23px;background:rgba(100,116,139,.3);border-radius:12px;cursor:pointer;transition:all var(--t);flex-shrink:0}
+.toggle .switch::after{content:'';position:absolute;top:2px;left:2px;width:19px;height:19px;background:#fff;border-radius:50%;transition:all var(--t);box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.toggle input:checked+.switch{background:var(--primary)}
+.toggle input:checked+.switch::after{transform:translateX(19px)}
+.toggle-text{font-size:13px;color:var(--text2);user-select:none}
 
-.btn {
-  padding: 10px 22px; border: none; border-radius: var(--radius-sm);
-  font-size: 13px; font-weight: 600; cursor: pointer;
-  transition: all var(--transition); letter-spacing: 0.2px;
-  position: relative; overflow: hidden;
+.btn{
+display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border:none;
+border-radius:var(--r3);font-size:13px;font-weight:600;cursor:pointer;
+transition:all var(--t);font-family:inherit;white-space:nowrap;
 }
-.btn::after {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-  transform: translateX(-100%); transition: transform 0.5s;
+.btn-primary{background:linear-gradient(135deg,var(--primary-2),var(--primary));color:#fff;box-shadow:0 2px 10px rgba(99,102,241,.3)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 18px rgba(99,102,241,.4)}
+.btn-success{background:var(--success-bg);color:var(--success);border:1px solid rgba(52,211,153,.2)}
+.btn-success:hover{background:rgba(52,211,153,.15)}
+.btn-ghost{background:transparent;color:var(--text3);border:1px solid var(--border)}
+.btn-ghost:hover{border-color:var(--border-hover);color:var(--text)}
+.btn-danger{background:rgba(248,113,113,.1);color:var(--danger);border:1px solid rgba(248,113,113,.2)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;pointer-events:none}
+.btn-group{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+
+.alert{padding:11px 15px;border-radius:var(--r3);font-size:13px;margin-top:10px;display:flex;align-items:center;gap:8px;animation:slideUp .25s ease}
+.alert::before{content:'';width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.alert-success{background:rgba(52,211,153,.06);color:var(--success);border:1px solid rgba(52,211,153,.15)}
+.alert-success::before{background:var(--success)}
+.alert-error{background:rgba(248,113,113,.06);color:var(--danger);border:1px solid rgba(248,113,113,.15)}
+.alert-error::before{background:var(--danger)}
+.alert-info{background:rgba(129,140,248,.06);color:var(--primary);border:1px solid rgba(129,140,248,.15)}
+.alert-info::before{background:var(--primary)}
+
+.steps{display:flex;margin-bottom:24px}
+.step{flex:1;text-align:center;position:relative}
+.step:not(:last-child)::after{content:'';position:absolute;top:15px;left:58%;width:84%;height:2px;background:var(--border);z-index:0;transition:background .5s}
+.step.done:not(:last-child)::after{background:var(--success)}
+.step .dot{width:30px;height:30px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 7px;font-size:11px;font-weight:700;position:relative;z-index:1;transition:all var(--t)}
+.step.active .dot{background:var(--primary);color:#fff;box-shadow:0 0 16px var(--primary-glow);transform:scale(1.08)}
+.step.done .dot{background:var(--success);color:#fff}
+.step .label{font-size:11px;color:var(--text4);transition:color var(--t)}
+.step.active .label{color:var(--primary);font-weight:600}
+
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.stat-card{
+background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);
+padding:18px 20px;transition:all var(--t);animation:slideUp .35s ease both;
+position:relative;overflow:hidden;
 }
-.btn:hover::after { transform: translateX(100%); }
-.btn-primary { background: var(--primary); color: #fff; box-shadow: 0 2px 12px var(--primary-glow); }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--primary-glow); }
-.btn-success { background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
-.btn-success:hover { background: rgba(16,185,129,0.25); }
-.btn-danger { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
-.btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
-.btn-ghost:hover { border-color: var(--primary); color: #fff; }
-.btn-sm { padding: 6px 14px; font-size: 12px; }
-.btn:active { transform: scale(0.97); }
-.btn-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--primary),transparent);opacity:0;transition:opacity var(--t)}
+.stat-card:hover::before{opacity:.6}
+.stat-card:hover{border-color:var(--border-hover);transform:translateY(-1px)}
+.stat-card .value{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:3px}
+.stat-card .label{font-size:11.5px;color:var(--text4);font-weight:500}
 
-.alert {
-  padding: 12px 16px; border-radius: var(--radius-sm);
-  font-size: 13px; margin-top: 10px;
-  animation: slideUp 0.3s ease;
-  display: flex; align-items: center; gap: 8px;
-}
-.alert::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.alert-success { background: rgba(16,185,129,0.1); color: var(--success); border: 1px solid rgba(16,185,129,0.2); }
-.alert-success::before { background: var(--success); }
-.alert-error { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.2); }
-.alert-error::before { background: var(--danger); }
+.bar{height:6px;background:rgba(100,116,139,.2);border-radius:3px;overflow:hidden;margin-top:8px}
+.bar-fill{height:100%;border-radius:3px;transition:width .7s cubic-bezier(.4,0,.2,1)}
+.bar-fill.good{background:linear-gradient(90deg,var(--primary),var(--success))}
+.bar-fill.warn{background:linear-gradient(90deg,var(--warning),#f97316)}
+.bar-fill.danger{background:linear-gradient(90deg,#f97316,var(--danger))}
 
-.step-indicator { display: flex; margin-bottom: 28px; gap: 0; }
-.step { flex: 1; text-align: center; position: relative; }
-.step:not(:last-child):after {
-  content: ''; position: absolute; top: 16px; left: 60%;
-  width: 80%; height: 2px; background: var(--border); z-index: 0;
-  transition: background 0.6s;
-}
-.step.completed:not(:last-child):after { background: var(--success); }
-.step .dot {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: var(--border); display: flex; align-items: center;
-  justify-content: center; margin: 0 auto 8px;
-  font-size: 12px; font-weight: 700;
-  position: relative; z-index: 1; transition: all var(--transition);
-}
-.step.active .dot { background: var(--primary); color: #fff; box-shadow: 0 0 16px var(--primary-glow); transform: scale(1.1); }
-.step.completed .dot { background: var(--success); color: #fff; }
-.step .label { font-size: 11px; color: var(--text-muted); transition: color var(--transition); }
-.step.active .label { color: var(--primary); font-weight: 600; }
+.skeleton{background:linear-gradient(90deg,var(--border) 25%,rgba(129,140,248,.06) 50%,var(--border) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 
-.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
-.metric-card {
-  background: var(--surface); backdrop-filter: blur(12px);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 20px; transition: all var(--transition);
-  animation: slideUp 0.4s ease both;
-}
-.metric-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
-.metric-card .value { font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
-.metric-card .label { font-size: 12px; color: var(--text-muted); margin-top: 6px; font-weight: 500; }
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:600}
+.badge-success{background:rgba(52,211,153,.12);color:var(--success)}
+.badge-warning{background:rgba(251,191,36,.12);color:var(--warning)}
+.badge-danger{background:rgba(248,113,113,.12);color:var(--danger)}
+.badge-info{background:rgba(129,140,248,.12);color:var(--primary)}
 
-.bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 10px; }
-.bar-fill { height: 100%; border-radius: 4px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
-.bar-fill.good { background: linear-gradient(90deg, var(--primary), var(--success)); }
-.bar-fill.warn { background: linear-gradient(90deg, var(--warning), #f97316); }
-.bar-fill.danger { background: linear-gradient(90deg, #f97316, var(--danger)); }
+.emptystate{text-align:center;padding:40px 20px;color:var(--text4)}
+.emptystate .icon{font-size:48px;margin-bottom:12px;opacity:.3}
+.emptystate p{font-size:14px}
 
-.skeleton {
-  background: linear-gradient(90deg, var(--border) 25%, rgba(99,102,241,0.1) 50%, var(--border) 75%);
-  background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px;
-}
-.badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-.badge-online { background: rgba(16,185,129,0.15); color: var(--success); }
-.badge-offline { background: rgba(239,68,68,0.15); color: var(--danger); }
-.bw-slider { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.bw-slider input[type="range"] { flex: 1; min-width: 150px; }
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
 
-.hero-icon { font-size: 36px; margin-bottom: 12px; display: block; opacity: 0.85; }
-
-/* React-like motion */
-.reveal { opacity: 0; transform: translateY(16px); animation: slideUp 0.5s ease forwards; }
-.delay-1 { animation-delay: 0.1s; }
-.delay-2 { animation-delay: 0.2s; }
-.delay-3 { animation-delay: 0.3s; }
-
-@media (max-width: 640px) {
-  header { padding: 0 16px; }
-  header h1 { font-size: 14px; }
-  nav a { padding: 6px 10px; font-size: 12px; }
-  .card { padding: 20px; }
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:768px){.grid-3{grid-template-columns:1fr}}
+@media(max-width:640px){
+header{padding:0 14px}header h1{font-size:13px}nav a{padding:5px 9px;font-size:11px}
+.card{padding:18px 16px}.row{flex-direction:column}
 }
 </style>
 </head>
 <body>
 <header>
-  <div class="logo">
-    <div class="dot"></div>
-    <h1>Edge Dispatch 配置中心</h1>
-  </div>
-  <nav>
-    <a href="/">首页</a>
-    <a href="/setup">配置向导</a>
-    <a href="/config">配置管理</a>
-    <a href="/status">运行状态</a>
-  </nav>
+<div class="logo"><div class="dot"></div><h1>Edge Dispatch 配置中心</h1></div>
+<nav><a href="/">首页</a><a href="/setup">配置向导</a><a href="/config">配置管理</a><a href="/status">运行状态</a></nav>
 </header>
 <main>
 `
@@ -548,9 +502,9 @@ const pageFooter = `
 </html>`
 
 const indexPage = `
-<div class="card reveal">
-  <h2>&#9889; 欢迎使用 Edge Dispatch Framework</h2>
-  <p style="color:var(--text-secondary);font-size:14px;line-height:1.8;max-width:640px">
+<div class="card">
+  <h2><span class="icon">&#9889;</span> 欢迎使用 Edge Dispatch Framework</h2>
+  <p style="color:var(--text3);font-size:13.5px;line-height:1.8;max-width:640px">
     本节点配置中心提供可视化的节点管理界面，支持 <strong style="color:var(--primary)">4步配置向导</strong>、运行时配置热重载、实时状态监控等功能。
   </p>
   <div class="btn-group">
@@ -559,20 +513,20 @@ const indexPage = `
   </div>
 </div>
 <div class="row">
-  <div class="col"><div class="card reveal delay-1" style="cursor:pointer" onclick="location.href='/setup'">
-    <span style="font-size:32px;margin-bottom:8px;display:block">&#128640;</span>
+  <div class="col"><div class="card" style="cursor:pointer" onclick="location.href='/setup'">
+    <span style="font-size:28px;margin-bottom:6px;display:block;opacity:.8">&#128640;</span>
     <h3>配置向导</h3>
-    <p style="color:var(--text-muted);font-size:13px;">4 步完成节点初始化：选择角色 → 服务端 → 缓存 → 网络</p>
+    <p style="color:var(--text4);font-size:12.5px;line-height:1.6">4 步完成节点初始化<br>角色 → 服务端 → 缓存 → 网络</p>
   </div></div>
-  <div class="col"><div class="card reveal delay-2" style="cursor:pointer" onclick="location.href='/config'">
-    <span style="font-size:32px;margin-bottom:8px;display:block">&#128295;</span>
+  <div class="col"><div class="card" style="cursor:pointer" onclick="location.href='/config'">
+    <span style="font-size:28px;margin-bottom:6px;display:block;opacity:.8">&#128295;</span>
     <h3>运行时配置</h3>
-    <p style="color:var(--text-muted);font-size:13px;">在线修改配置并热重载，无需重启服务。支持导入/导出。</p>
+    <p style="color:var(--text4);font-size:12.5px;line-height:1.6">在线修改配置并热重载<br>无需重启服务</p>
   </div></div>
-  <div class="col"><div class="card reveal delay-3" style="cursor:pointer" onclick="location.href='/status'">
-    <span style="font-size:32px;margin-bottom:8px;display:block">&#128202;</span>
+  <div class="col"><div class="card" style="cursor:pointer" onclick="location.href='/status'">
+    <span style="font-size:28px;margin-bottom:6px;display:block;opacity:.8">&#128202;</span>
     <h3>实时监控</h3>
-    <p style="color:var(--text-muted);font-size:13px;">查看节点运行状态、带宽使用、缓存命中率等关键指标。</p>
+    <p style="color:var(--text4);font-size:12.5px;line-height:1.6">节点运行状态<br>带宽 · 缓存 · 请求量</p>
   </div></div>
 </div>
 `
@@ -580,10 +534,10 @@ const indexPage = `
 const setupPage = `
 <div class="card">
   <h2>&#9881; 配置向导</h2>
-  <div class="step-indicator">
-    <div class="step completed"><div class="dot">1</div><div class="label">选择角色</div></div>
-    <div class="step completed"><div class="dot">2</div><div class="label">服务端配置</div></div>
-    <div class="step completed"><div class="dot">3</div><div class="label">缓存配置</div></div>
+  <div class="steps">
+    <div class="step done"><div class="dot">1</div><div class="label">选择角色</div></div>
+    <div class="step done"><div class="dot">2</div><div class="label">服务端配置</div></div>
+    <div class="step done"><div class="dot">3</div><div class="label">缓存配置</div></div>
     <div class="step active"><div class="dot">4</div><div class="label">网络配置</div></div>
   </div>
 
@@ -651,13 +605,13 @@ const setupPage = `
   <div class="row" style="margin-top:8px">
     <div class="col">
       <div class="form-group">
-        <div class="toggle"><input type="checkbox" id="p2pEnabled" checked><label for="p2pEnabled"></label><span class="toggle-text">启用 P2P 互助</span></div>
+        <div class="toggle"><input type="checkbox" id="p2pEnabled" checked><span class="switch"></span><span class="toggle-text">启用 P2P 互助</span></div>
       </div>
       <div class="form-group"><label>最大邻居数</label><input type="number" id="p2pMaxPeers" value="10" min="1" max="100" /></div>
     </div>
     <div class="col">
       <div class="form-group">
-        <div class="toggle"><input type="checkbox" id="prefetchEnabled" checked><label for="prefetchEnabled"></label><span class="toggle-text">启用智能预拉取</span></div>
+        <div class="toggle"><input type="checkbox" id="prefetchEnabled" checked><span class="switch"></span><span class="toggle-text">启用智能预拉取</span></div>
       </div>
       <div class="form-group"><label>预拉取线程</label><input type="number" id="prefetchWorkers" value="2" min="1" max="10" /></div>
     </div>
@@ -717,8 +671,8 @@ async function applyConfig() {
 `
 
 const configPage = `
-<div class="card reveal">
-  <h2>&#128295; 运行时配置管理</h2>
+<div class="card">
+  <h2><span class="icon">&#128295;</span> 运行时配置管理</h2>
   <div class="row">
     <div class="col">
       <div class="form-group"><label>控制平面地址</label><input type="text" id="cpUrl" /></div>
@@ -731,116 +685,108 @@ const configPage = `
       <div class="form-group"><label>回源带宽限制 (Mbps)</label><input type="number" id="originFetchBWLimit" /></div>
       <div class="form-group"><label>区域 (Region)</label><input type="text" id="region" placeholder="cn-hk" /></div>
       <div class="form-group"><label>运营商 (ISP)</label><input type="text" id="isp" placeholder="bgp" /></div>
-      <div class="form-group" style="margin-top:8px"><div class="toggle"><input type="checkbox" id="p2pEnabled"><label for="p2pEnabled"></label><span class="toggle-text">P2P 互助</span></div></div>
+      <div class="form-group"><div class="toggle"><input type="checkbox" id="p2pEnabled"><span class="switch"></span><span class="toggle-text">P2P 互助</span></div></div>
       <div class="form-group"><label>P2P 最大邻居</label><input type="number" id="p2pMaxPeers" /></div>
-      <div class="form-group" style="margin-top:8px"><div class="toggle"><input type="checkbox" id="prefetchEnabled"><label for="prefetchEnabled"></label><span class="toggle-text">智能预拉取</span></div></div>
+      <div class="form-group"><div class="toggle"><input type="checkbox" id="prefetchEnabled"><span class="switch"></span><span class="toggle-text">智能预拉取</span></div></div>
     </div>
   </div>
   <div class="btn-group">
-    <button class="btn btn-success" onclick="saveConfig()">&#10003; 保存配置</button>
-    <button class="btn btn-primary" onclick="applyConfig()">&#10227; 热重载</button>
+    <button class="btn btn-primary" onclick="saveConfig()">&#10003; 保存配置</button>
+    <button class="btn btn-success" onclick="applyConfig()">&#10227; 热重载</button>
   </div>
   <div id="configResult"></div>
 </div>
 <script>
-async function loadConfig() {
-  var r = await fetch('/api/config');
-  var d = await r.json();
-  document.getElementById('cpUrl').value = d.control_plane_url||'';
-  document.getElementById('originUrl').value = d.origin_url||'';
-  document.getElementById('cacheDir').value = d.cache_dir||'';
-  document.getElementById('cacheMaxGB').value = d.cache_max_gb||10;
-  document.getElementById('maxUplink').value = d.max_uplink_mbps||100;
-  document.getElementById('originFetchBWLimit').value = d.origin_fetch_bw_limit||0;
-  document.getElementById('region').value = d.region||'';
-  document.getElementById('isp').value = d.isp||'';
-  document.getElementById('p2pEnabled').checked = d.p2p_enabled||false;
-  document.getElementById('p2pMaxPeers').value = d.p2p_max_peers||10;
-  document.getElementById('prefetchEnabled').checked = d.prefetch_enabled||false;
+async function loadConfig(){
+var r=await fetch('/api/config');var d=await r.json();
+document.getElementById('cpUrl').value=d.control_plane_url||'';
+document.getElementById('originUrl').value=d.origin_url||'';
+document.getElementById('cacheDir').value=d.cache_dir||'';
+document.getElementById('cacheMaxGB').value=d.cache_max_gb||10;
+document.getElementById('maxUplink').value=d.max_uplink_mbps||100;
+document.getElementById('originFetchBWLimit').value=d.origin_fetch_bw_limit||0;
+document.getElementById('region').value=d.region||'';
+document.getElementById('isp').value=d.isp||'';
+document.getElementById('p2pEnabled').checked=d.p2p_enabled||false;
+document.getElementById('p2pMaxPeers').value=d.p2p_max_peers||10;
+document.getElementById('prefetchEnabled').checked=d.prefetch_enabled||false;
 }
-async function saveConfig() {
-  var payload = {
-    control_plane_url: document.getElementById('cpUrl').value,
-    origin_url: document.getElementById('originUrl').value,
-    cache_dir: document.getElementById('cacheDir').value,
-    cache_max_gb: parseInt(document.getElementById('cacheMaxGB').value),
-    max_uplink_mbps: parseInt(document.getElementById('maxUplink').value),
-    origin_fetch_bw_limit: parseInt(document.getElementById('originFetchBWLimit').value),
-    p2p_enabled: document.getElementById('p2pEnabled').checked,
-    p2p_max_peers: parseInt(document.getElementById('p2pMaxPeers').value),
-    prefetch_enabled: document.getElementById('prefetchEnabled').checked,
-  };
-  await fetch('/api/config/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  document.getElementById('configResult').innerHTML = '<div class="alert alert-success">&#10003; 配置已保存</div>';
+async function saveConfig(){
+var payload={
+control_plane_url:document.getElementById('cpUrl').value,
+origin_url:document.getElementById('originUrl').value,
+cache_dir:document.getElementById('cacheDir').value,
+cache_max_gb:parseInt(document.getElementById('cacheMaxGB').value),
+max_uplink_mbps:parseInt(document.getElementById('maxUplink').value),
+origin_fetch_bw_limit:parseInt(document.getElementById('originFetchBWLimit').value),
+p2p_enabled:document.getElementById('p2pEnabled').checked,
+p2p_max_peers:parseInt(document.getElementById('p2pMaxPeers').value),
+prefetch_enabled:document.getElementById('prefetchEnabled').checked,
+};
+await fetch('/api/config/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+document.getElementById('configResult').innerHTML='<div class="alert alert-success">&#10003; 配置已保存</div>';
 }
-async function applyConfig() {
-  await saveConfig();
-  await fetch('/api/config/apply', {method:'POST'});
-  document.getElementById('configResult').innerHTML = '<div class="alert alert-success">&#10003; 配置已热重载，无需重启服务</div>';
-}
+async function applyConfig(){await saveConfig();await fetch('/api/config/apply',{method:'POST'});
+document.getElementById('configResult').innerHTML='<div class="alert alert-success">&#10003; 配置已热重载，无需重启服务</div>';}
 loadConfig();
 </script>
 `
 
 const statusPage = `
-<div class="card reveal">
-  <h2>&#128202; 节点运行状态</h2>
-  <div class="metric-grid">
-    <div class="metric-card"><div class="value" id="uptime">--</div><div class="label">&#9202; 运行时长</div></div>
-    <div class="metric-card"><div class="value" id="requests">--</div><div class="label">&#128260; 请求总数</div></div>
-    <div class="metric-card"><div class="value" id="cacheHitRatio">--</div><div class="label">&#127919; 缓存命中率</div></div>
-    <div class="metric-card"><div class="value" id="cacheItems">--</div><div class="label">&#128190; 缓存条目</div></div>
+<div class="card">
+  <h2><span class="icon">&#128202;</span> 节点运行状态</h2>
+  <div class="stats-grid">
+    <div class="stat-card"><div class="value" id="uptime">--</div><div class="label">&#9202; 运行时长</div></div>
+    <div class="stat-card"><div class="value" id="requests">--</div><div class="label">&#128260; 请求总数</div></div>
+    <div class="stat-card"><div class="value" id="cacheHitRatio">--</div><div class="label">&#127919; 缓存命中率</div></div>
+    <div class="stat-card"><div class="value" id="cacheItems">--</div><div class="label">&#128190; 缓存条目</div></div>
   </div>
 </div>
-<div class="card reveal delay-1">
-  <h2>&#128200; 带宽监控</h2>
-  <div class="row">
-    <div class="col" style="text-align:center">
-      <div style="font-size:28px;font-weight:800;color:var(--success)" id="egress">--</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">&#11014; 出站 (Mbps)</div>
+<div class="card">
+  <h2><span class="icon">&#128200;</span> 带宽监控</h2>
+  <div class="grid-3">
+    <div class="stat-card" style="text-align:center">
+      <div class="value" id="egress" style="color:var(--success)">--</div>
+      <div class="label">&#11014; 出站 Mbps</div>
     </div>
-    <div class="col" style="text-align:center">
-      <div style="font-size:28px;font-weight:800;color:var(--primary)" id="ingress">--</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">&#11015; 入站 (Mbps)</div>
+    <div class="stat-card" style="text-align:center">
+      <div class="value" id="ingress" style="color:var(--primary)">--</div>
+      <div class="label">&#11015; 入站 Mbps</div>
     </div>
-    <div class="col" style="text-align:center">
-      <div style="font-size:28px;font-weight:800;color:#fff" id="bytesSent">--</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">&#128229; 已传输</div>
+    <div class="stat-card" style="text-align:center">
+      <div class="value" id="bytesSent" style="color:var(--text)">--</div>
+      <div class="label">&#128229; 已传输</div>
     </div>
   </div>
 </div>
-<div class="card reveal delay-2">
-  <h2>&#128451; 缓存空间</h2>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-    <span style="font-size:13px;color:var(--text-secondary)">缓存使用率</span>
-    <span id="bwPercent" style="font-size:16px;font-weight:700;color:var(--primary)">--%</span>
+<div class="card">
+  <h2><span class="icon">&#128451;</span> 缓存空间</h2>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+    <span style="font-size:12.5px;color:var(--text2)">缓存使用率</span>
+    <span id="bwPercent" style="font-size:15px;font-weight:700;color:var(--primary)">--%</span>
   </div>
   <div class="bar"><div class="bar-fill good" id="bwBar" style="width:0%"></div></div>
-  <div style="font-size:12px;color:var(--text-muted);margin-top:6px"><span id="cacheSize">--</span> GB / <span id="cacheMax">--</span> GB</div>
+  <div style="font-size:12px;color:var(--text4);margin-top:5px"><span id="cacheSize">--</span> GB / <span id="cacheMax">10</span> GB</div>
 </div>
 <script>
-function fmtBytes(b) { if (!b) return '0 B'; var u=['B','KB','MB','GB','TB'], i=0; while(b>=1024&&i<4){b/=1024;i++;} return b.toFixed(1)+' '+u[i]; }
-async function loadStatus() {
-  try {
-    var r = await fetch('/api/status');
-    var d = await r.json();
-    document.getElementById('uptime').textContent = d.uptime||'--';
-    document.getElementById('requests').textContent = (d.requests||0).toLocaleString();
-    document.getElementById('cacheHitRatio').textContent = ((d.cache_hit_ratio||0)*100).toFixed(1)+'%';
-    document.getElementById('cacheItems').textContent = (d.cache_items||0).toLocaleString();
-    document.getElementById('egress').textContent = (d.egress_mbps||0).toFixed(1);
-    document.getElementById('ingress').textContent = (d.ingress_mbps||0).toFixed(1);
-    document.getElementById('bytesSent').textContent = fmtBytes(d.bytes_sent||0);
-    var bw = Math.min(100, Math.max(0, (d.bandwidth_usage||0)));
-    document.getElementById('bwPercent').textContent = Math.round(bw)+'%';
-    var bar = document.getElementById('bwBar');
-    bar.style.width = bw+'%';
-    bar.className = 'bar-fill ' + (bw > 80 ? 'danger' : bw > 50 ? 'warn' : 'good');
-    document.getElementById('cacheSize').textContent = (d.cache_size_gb||0).toFixed(2);
-    document.getElementById('cacheMax').textContent = '10';
-  } catch(e) {}
+function fmtBytes(b){if(!b)return'0 B';var u=['B','KB','MB','GB','TB'],i=0;while(b>=1024&&i<4){b/=1024;i++}return b.toFixed(1)+' '+u[i]}
+async function loadStatus(){
+try{
+var r=await fetch('/api/status');var d=await r.json();
+document.getElementById('uptime').textContent=d.uptime||'--';
+document.getElementById('requests').textContent=(d.requests||0).toLocaleString();
+document.getElementById('cacheHitRatio').textContent=((d.cache_hit_ratio||0)*100).toFixed(1)+'%';
+document.getElementById('cacheItems').textContent=(d.cache_items||0).toLocaleString();
+document.getElementById('egress').textContent=(d.egress_mbps||0).toFixed(1);
+document.getElementById('ingress').textContent=(d.ingress_mbps||0).toFixed(1);
+document.getElementById('bytesSent').textContent=fmtBytes(d.bytes_sent||0);
+var bw=Math.min(100,Math.max(0,(d.bandwidth_usage||0)));
+document.getElementById('bwPercent').textContent=Math.round(bw)+'%';
+var bar=document.getElementById('bwBar');bar.style.width=bw+'%';
+bar.className='bar-fill '+(bw>80?'danger':bw>50?'warn':'good');
+document.getElementById('cacheSize').textContent=(d.cache_size_gb||0).toFixed(2);
+}catch(e){}
 }
-loadStatus();
-setInterval(loadStatus, 5000);
+loadStatus();setInterval(loadStatus,5000);
 </script>
 `
