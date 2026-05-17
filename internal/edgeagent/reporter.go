@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/darkinno/edge-dispatch-framework/internal/config"
@@ -110,10 +111,13 @@ func (r *Reporter) ReportOnce(ctx context.Context) error {
 	runtime.ReadMemStats(&memStats)
 
 	delta := r.server.GetMetricsDelta()
+	ingressMbps, bwEgressMbps := r.server.BWMeter().Snapshot()
 	intervalSec := r.cfg.HeartbeatInterval.Seconds()
+
 	var egressMbps float64
 	var errRate float64
-	if intervalSec > 0 {
+	egressMbps = bwEgressMbps
+	if egressMbps <= 0 && intervalSec > 0 {
 		egressMbps = float64(delta.BytesSent*8) / (intervalSec * 1e6)
 	}
 	if delta.Requests > 0 {
@@ -132,7 +136,7 @@ func (r *Reporter) ReportOnce(ctx context.Context) error {
 		},
 		Traffic: models.NodeTraffic{
 			EgressMbps:  egressMbps,
-			IngressMbps: 0,
+			IngressMbps: ingressMbps,
 			Err5xxRate:  errRate,
 		},
 		Cache: models.NodeCache{
@@ -180,12 +184,16 @@ func (r *Reporter) Register(ctx context.Context) error {
 		host = r.detectPublicIP()
 	}
 	region := r.cfg.Region
-	if region == "" {
-		region = "unknown"
-	}
 	isp := r.cfg.ISP
-	if isp == "" {
-		isp = "unknown"
+	if region == "" || isp == "" || region == "auto" || isp == "auto" {
+		geo := r.detectGeoIP(host)
+		if region == "" || region == "auto" {
+			region = geo.Region
+		}
+		if isp == "" || isp == "auto" {
+			isp = geo.ISP
+		}
+		slog.Info("geoip detected", "region", region, "isp", isp, "country", geo.Country)
 	}
 
 	regReq := models.RegisterRequest{
@@ -313,4 +321,98 @@ func (r *Reporter) detectPublicIP() string {
 	}
 	slog.Warn("could not detect public IP, using localhost")
 	return "localhost"
+}
+
+type GeoIPResult struct {
+	Country string `json:"country"`
+	Region  string `json:"regionName"`
+	City    string `json:"city"`
+	ISP     string `json:"isp"`
+}
+
+func (r *Reporter) detectGeoIP(ip string) GeoIPResult {
+	if ip == "" || ip == "localhost" || net.ParseIP(ip) == nil {
+		return GeoIPResult{Region: "unknown", ISP: "unknown"}
+	}
+	if net.ParseIP(ip).IsPrivate() {
+		return GeoIPResult{Region: "local", ISP: "local"}
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("http://ip-api.com/json/" + ip + "?fields=country,regionName,city,isp")
+	if err != nil {
+		slog.Warn("geoip lookup failed", "err", err)
+		return GeoIPResult{Region: "unknown", ISP: "unknown"}
+	}
+	defer resp.Body.Close()
+
+	var geo GeoIPResult
+	if err := json.NewDecoder(resp.Body).Decode(&geo); err != nil {
+		slog.Warn("geoip decode failed", "err", err)
+		return GeoIPResult{Region: "unknown", ISP: "unknown"}
+	}
+
+	region := geo.Region
+	if region == "" {
+		region = geo.City
+	}
+	if region == "" {
+		region = geo.Country
+	}
+	return GeoIPResult{
+		Country: geo.Country,
+		Region:  region,
+		ISP:     geo.ISP,
+	}
+}
+
+type BandwidthMeter struct {
+	bytesIn     atomic.Int64
+	bytesOut    atomic.Int64
+	lastIn      int64
+	lastOut     int64
+	lastCheck   time.Time
+	mu          sync.Mutex
+	egressMbps  float64
+	ingressMbps float64
+}
+
+func NewBandwidthMeter() *BandwidthMeter {
+	return &BandwidthMeter{lastCheck: time.Now()}
+}
+
+func (b *BandwidthMeter) AddIn(bytes int64)  { b.bytesIn.Add(bytes) }
+func (b *BandwidthMeter) AddOut(bytes int64) { b.bytesOut.Add(bytes) }
+
+func (b *BandwidthMeter) Snapshot() (ingressMbps, egressMbps float64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(b.lastCheck).Seconds()
+	currentIn := b.bytesIn.Load()
+	currentOut := b.bytesOut.Load()
+
+	if elapsed > 0 {
+		b.ingressMbps = float64(currentIn-b.lastIn) * 8 / elapsed / 1e6
+		b.egressMbps = float64(currentOut-b.lastOut) * 8 / elapsed / 1e6
+	}
+
+	b.lastIn = currentIn
+	b.lastOut = currentOut
+	b.lastCheck = now
+
+	if b.ingressMbps < 0 {
+		b.ingressMbps = 0
+	}
+	if b.egressMbps < 0 {
+		b.egressMbps = 0
+	}
+	return b.ingressMbps, b.egressMbps
+}
+
+func (b *BandwidthMeter) Current() (ingressMbps, egressMbps float64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.ingressMbps, b.egressMbps
 }
