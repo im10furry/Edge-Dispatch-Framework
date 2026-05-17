@@ -627,16 +627,16 @@ func (s *Server) CacheHits() int64    { return s.metrics.cacheHits.Load() }
 func (s *Server) CacheMisses() int64  { return s.metrics.cacheMisses.Load() }
 func (s *Server) BytesSent() int64    { return s.metrics.bytesSent.Load() }
 func (s *Server) ErrorCount() int64   { return s.metrics.errors.Load() }
+func (s *Server) BWMeter() *BandwidthMeter { return s.bwMeter }
 
 func (s *Server) GetCacheStats() (size int64, maxGB int64, itemCount int64) {
-	stats := s.cache.Stats()
-	return stats.Size, stats.MaxGB, stats.ItemCount
+	cs := s.cache.Stats()
+	return cs.Size, cs.MaxGB, cs.ItemCount
 }
 
 func (s *Server) GetBandwidth() (ingress, egress float64) {
-	return s.bwMeter.Snapshot()
+	return s.bwMeter.Current()
 }
-func (s *Server) BWMeter() *BandwidthMeter { return s.bwMeter }
 
 func (s *Server) GetMetricsSnapshot() MetricsSnapshot {
 	s.snapshotMu.Lock()
