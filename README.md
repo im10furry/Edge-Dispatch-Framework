@@ -24,6 +24,8 @@
 | **Origin Shield Mode** | Layered cache architecture with shield node priority in scheduling | ✅ v0.6 |
 | **IPv6 Dual-Stack** | IPv4/IPv6 dual-stack listen with auto fallback | ✅ v0.6 |
 | **One-Click Install** | Interactive install script for CP/EA/Origin deployment | ✅ v0.6 |
+| **Helm Chart** | Kubernetes native deployment via Helm | ✅ v0.6 |
+| **QUIC Client** | HTTP/3 client transport for inter-service communication | ✅ v0.6 |
 
 ## Architecture Overview
 
@@ -434,6 +436,8 @@ docker push your-registry/edf-edge-agent:latest
 │   ├── streaming/                # HLS/DASH streaming support (v0.4)
 │   └── tunnel/                   # Reverse Tunnel Protocol (v0.3)
 ├── docker/                       # Dockerfiles
+├── charts/                       # Helm Chart (Kubernetes)
+│   └── edge-dispatch/            # Full-stack K8s deployment
 ├── Dockerfile                    # Root Dockerfile (multi-stage build)
 ├── docker-compose.yml            # Local demo (All-in-One)
 ├── docker-compose.cp.yml         # Control Plane deployment (production)
@@ -602,7 +606,7 @@ make stress-gateway
 - [x] **v0.4** — HLS/DASH Streaming + Sliding-window Cache + Prefetch
 - [x] **v0.5** — Prometheus Metrics, Hot Key TTL Cleanup, Bug Fixes (v0.1~v0.3)
 - [x] **v0.6** — HTTP/3 QUIC + Helm Chart + 小带宽优化 + P2P + 智能预取 + Admin UI + IPv6
-- [ ] **v0.7** — QUIC 客户端优化 + 分布式追踪 + GeoDNS + 多租户限流 + 控制面 HA
+- [ ] **v0.7** — 分布式追踪 + GeoDNS + 多租户限流 + 控制面 HA
 
 ## Contributing
 
