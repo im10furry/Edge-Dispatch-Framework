@@ -601,7 +601,8 @@ make stress-gateway
 - [x] **v0.3** — Gateway Reverse Proxy + Reverse Tunnel (NAT node support)
 - [x] **v0.4** — HLS/DASH Streaming + Sliding-window Cache + Prefetch
 - [x] **v0.5** — Prometheus Metrics, Hot Key TTL Cleanup, Bug Fixes (v0.1~v0.3)
-- [ ] **v0.6** — HTTP/3 QUIC (config + partial impl), Helm Chart Deployment
+- [x] **v0.6** — HTTP/3 QUIC + Helm Chart + 小带宽优化 + P2P + 智能预取 + Admin UI + IPv6
+- [ ] **v0.7** — QUIC 客户端优化 + 分布式追踪 + GeoDNS + 多租户限流 + 控制面 HA
 
 ## Contributing
 
