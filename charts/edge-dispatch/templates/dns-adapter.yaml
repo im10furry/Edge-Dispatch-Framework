@@ -1,0 +1,68 @@
+{{- if .Values.dnsAdapter.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "edge-dispatch.fullname" . }}-dns-adapter
+  labels:
+    {{- include "edge-dispatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dns-adapter
+spec:
+  replicas: {{ .Values.dnsAdapter.replicas }}
+  selector:
+    matchLabels:
+      {{- include "edge-dispatch.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: dns-adapter
+  template:
+    metadata:
+      labels:
+        {{- include "edge-dispatch.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: dns-adapter
+    spec:
+      containers:
+        - name: dns-adapter
+          image: "{{ .Values.dnsAdapter.image.repository }}:{{ .Values.dnsAdapter.image.tag }}"
+          imagePullPolicy: {{ .Values.dnsAdapter.image.pullPolicy }}
+          command: ["/dns-adapter"]
+          ports:
+            - name: dns
+              containerPort: 5353
+              protocol: UDP
+          env:
+            - name: DNS_LISTEN_ADDR
+              value: {{ .Values.dnsAdapter.env.listenAddr | quote }}
+            - name: DNS_CONTROL_PLANE_URL
+              value: {{ include "edge-dispatch.controlPlaneUrl" . | quote }}
+            - name: DNS_DOMAIN
+              value: {{ .Values.dnsAdapter.env.domain | quote }}
+            - name: DNS_TTL_SECONDS
+              value: {{ .Values.dnsAdapter.env.ttlSeconds | quote }}
+            - name: DNS_REFRESH_INTERVAL
+              value: {{ .Values.dnsAdapter.env.refreshInterval | quote }}
+            - name: DNS_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: dns-token-secret
+            - name: DNS_CONTENT_AWARE_SCORE
+              value: {{ .Values.dnsAdapter.env.contentAwareScore | quote }}
+          resources:
+            {{- toYaml .Values.dnsAdapter.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edge-dispatch.fullname" . }}-dns-adapter
+  labels:
+    {{- include "edge-dispatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dns-adapter
+spec:
+  type: {{ .Values.dnsAdapter.service.type }}
+  ports:
+    - name: dns
+      port: {{ .Values.dnsAdapter.service.port }}
+      targetPort: dns
+      protocol: UDP
+  selector:
+    {{- include "edge-dispatch.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: dns-adapter
+{{- end }}

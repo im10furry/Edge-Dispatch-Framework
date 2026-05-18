@@ -1,0 +1,18 @@
+apiVersion: v2
+name: edge-dispatch
+description: Edge Dispatch Framework - Edge content delivery and acceleration
+type: application
+version: 0.6.0
+appVersion: "0.6.0"
+keywords:
+  - cdn
+  - edge-computing
+  - content-delivery
+  - dispatch
+  - streaming
+home: https://github.com/darkinno/edge-dispatch-framework
+sources:
+  - https://github.com/darkinno/edge-dispatch-framework
+maintainers:
+  - name: DarkInno
+    email: dev@darkinno.com

@@ -1,0 +1,103 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "edge-dispatch.fullname" . }}-gateway
+  labels:
+    {{- include "edge-dispatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels:
+      {{- include "edge-dispatch.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        {{- include "edge-dispatch.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+    spec:
+      containers:
+        - name: gateway
+          image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag }}"
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          command: ["/gateway"]
+          ports:
+            - name: proxy
+              containerPort: 8880
+              protocol: TCP
+            - name: tunnel
+              containerPort: 7700
+              protocol: TCP
+            - name: quic
+              containerPort: 9443
+              protocol: UDP
+          env:
+            - name: GW_LISTEN_ADDR
+              value: {{ .Values.gateway.env.listenAddr | quote }}
+            - name: GW_TUNNEL_ADDR
+              value: {{ .Values.gateway.env.tunnelAddr | quote }}
+            - name: GW_CONTROL_PLANE_URL
+              value: {{ include "edge-dispatch.controlPlaneUrl" . | quote }}
+            - name: GW_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: gw-auth-token
+            - name: GW_CP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: gw-cp-token
+            - name: GW_READ_TIMEOUT
+              value: {{ .Values.gateway.env.readTimeout | quote }}
+            - name: GW_WRITE_TIMEOUT
+              value: {{ .Values.gateway.env.writeTimeout | quote }}
+            - name: GW_IDLE_TIMEOUT
+              value: {{ .Values.gateway.env.idleTimeout | quote }}
+            - name: GW_QUIC_ENABLED
+              value: {{ .Values.gateway.env.quicEnabled | quote }}
+            - name: GW_QUIC_LISTEN_ADDR
+              value: {{ .Values.gateway.env.quicListenAddr | quote }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: proxy
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: proxy
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edge-dispatch.fullname" . }}-gateway
+  labels:
+    {{- include "edge-dispatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  type: {{ .Values.gateway.service.type }}
+  ports:
+    - name: proxy
+      port: {{ .Values.gateway.service.proxyPort }}
+      targetPort: proxy
+      protocol: TCP
+    - name: tunnel
+      port: {{ .Values.gateway.service.tunnelPort }}
+      targetPort: tunnel
+      protocol: TCP
+    - name: quic
+      port: {{ .Values.gateway.service.quicPort }}
+      targetPort: quic
+      protocol: UDP
+  selector:
+    {{- include "edge-dispatch.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+{{- end }}

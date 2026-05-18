@@ -1,0 +1,141 @@
+{{- if .Values.edgeAgent.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "edge-dispatch.fullname" . }}-edge-agent
+  labels:
+    {{- include "edge-dispatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: edge-agent
+spec:
+  replicas: {{ .Values.edgeAgent.replicas }}
+  selector:
+    matchLabels:
+      {{- include "edge-dispatch.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: edge-agent
+  template:
+    metadata:
+      labels:
+        {{- include "edge-dispatch.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: edge-agent
+    spec:
+      containers:
+        - name: edge-agent
+          image: "{{ .Values.edgeAgent.image.repository }}:{{ .Values.edgeAgent.image.tag }}"
+          imagePullPolicy: {{ .Values.edgeAgent.image.pullPolicy }}
+          command: ["/edge-agent"]
+          ports:
+            - name: http
+              containerPort: 9090
+              protocol: TCP
+            - name: quic
+              containerPort: 9443
+              protocol: UDP
+          env:
+            - name: EA_LISTEN_ADDR
+              value: {{ .Values.edgeAgent.env.listenAddr | quote }}
+            - name: EA_CONTROL_PLANE_URL
+              value: {{ include "edge-dispatch.controlPlaneUrl" . | quote }}
+            - name: EA_CACHE_DIR
+              value: {{ .Values.edgeAgent.env.cacheDir | quote }}
+            - name: EA_CACHE_MAX_GB
+              value: {{ .Values.edgeAgent.env.cacheMaxGB | quote }}
+            - name: EA_ORIGIN_URL
+              value: {{ include "edge-dispatch.originUrl" . | quote }}
+            - name: EA_HEARTBEAT_INTERVAL
+              value: {{ .Values.edgeAgent.env.heartbeatInterval | quote }}
+            - name: EA_NODE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: ea-node-token
+            - name: EA_REGION
+              value: {{ .Values.edgeAgent.env.region | quote }}
+            - name: EA_ISP
+              value: {{ .Values.edgeAgent.env.isp | quote }}
+            - name: EA_NAT_MODE
+              value: {{ .Values.edgeAgent.env.natMode | quote }}
+            - name: EA_TUNNEL_SERVER_ADDR
+              value: {{ .Values.edgeAgent.env.tunnelServerAddr | quote }}
+            - name: EA_TUNNEL_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: ea-tunnel-auth-token
+            - name: EA_QUIC_ENABLED
+              value: {{ .Values.edgeAgent.env.quicEnabled | quote }}
+            - name: EA_QUIC_LISTEN_ADDR
+              value: {{ .Values.edgeAgent.env.quicListenAddr | quote }}
+            - name: EA_SHIELD_MODE
+              value: {{ .Values.edgeAgent.env.shieldMode | quote }}
+            - name: EA_P2P_ENABLED
+              value: {{ .Values.edgeAgent.env.p2pEnabled | quote }}
+            - name: EA_PREFETCH_ENABLED
+              value: {{ .Values.edgeAgent.env.prefetchEnabled | quote }}
+            - name: EA_TLS_ENABLED
+              value: {{ .Values.edgeAgent.env.tlsEnabled | quote }}
+            - name: EA_TLS_AUTO_CERT
+              value: {{ .Values.edgeAgent.env.tlsAutoCert | quote }}
+          {{- if .Values.edgeAgent.persistence.enabled }}
+          volumeMounts:
+            - name: cache
+              mountPath: /data/edf-cache
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.edgeAgent.resources | nindent 12 }}
+      {{- if .Values.edgeAgent.persistence.enabled }}
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: {{ include "edge-dispatch.fullname" . }}-edge-agent-cache
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edge-dispatch.fullname" . }}-edge-agent
+  labels:
+    {{- include "edge-dispatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: edge-agent
+spec:
+  type: {{ .Values.edgeAgent.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.edgeAgent.service.port }}
+      targetPort: http
+      protocol: TCP
+    - name: quic
+      port: {{ .Values.edgeAgent.service.quicPort }}
+      targetPort: quic
+      protocol: UDP
+  selector:
+    {{- include "edge-dispatch.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: edge-agent
+{{- if .Values.edgeAgent.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "edge-dispatch.fullname" . }}-edge-agent-cache
+  labels:
+    {{- include "edge-dispatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: edge-agent
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.edgeAgent.persistence.size }}
+{{- end }}
+{{- end }}

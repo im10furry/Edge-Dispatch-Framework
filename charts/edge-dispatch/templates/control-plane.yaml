@@ -1,0 +1,129 @@
+{{- if .Values.controlPlane.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "edge-dispatch.fullname" . }}-control-plane
+  labels:
+    {{- include "edge-dispatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane
+spec:
+  replicas: {{ .Values.controlPlane.replicas }}
+  selector:
+    matchLabels:
+      {{- include "edge-dispatch.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: control-plane
+  template:
+    metadata:
+      labels:
+        {{- include "edge-dispatch.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: control-plane
+    spec:
+      containers:
+        - name: control-plane
+          image: "{{ .Values.controlPlane.image.repository }}:{{ .Values.controlPlane.image.tag }}"
+          imagePullPolicy: {{ .Values.controlPlane.image.pullPolicy }}
+          command: ["/control-plane"]
+          ports:
+            - name: api
+              containerPort: 8080
+              protocol: TCP
+            - name: admin
+              containerPort: 8082
+              protocol: TCP
+          env:
+            - name: CP_LISTEN_ADDR
+              value: {{ .Values.controlPlane.env.listenAddr | quote }}
+            - name: CP_PG_URL
+              value: "postgres://$(PG_USER):$(PG_PASSWORD)@{{ .Release.Name }}-postgres:5432/$(PG_DATABASE)?sslmode=disable"
+            - name: CP_REDIS_ADDR
+              value: "{{ .Release.Name }}-redis:6379"
+            - name: CP_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: cp-token-secret
+            - name: CP_ADMIN_ENABLED
+              value: {{ .Values.controlPlane.env.adminEnabled | quote }}
+            - name: CP_ADMIN_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: cp-admin-jwt-secret
+            - name: CP_ADMIN_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: cp-admin-access-key
+            - name: CP_ADMIN_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: cp-admin-secret-key
+            - name: CP_MAX_CANDIDATES
+              value: {{ .Values.controlPlane.env.maxCandidates | quote }}
+            - name: CP_DEFAULT_TTL_MS
+              value: {{ .Values.controlPlane.env.defaultTTLMs | quote }}
+            - name: CP_DEGRADE_TO_ORIGIN
+              value: {{ .Values.controlPlane.env.degradeToOrigin | quote }}
+            - name: CP_HEARTBEAT_TTL
+              value: {{ .Values.controlPlane.env.heartbeatTTL | quote }}
+            - name: CP_PROBE_INTERVAL
+              value: {{ .Values.controlPlane.env.probeInterval | quote }}
+            - name: CP_PROBE_TIMEOUT
+              value: {{ .Values.controlPlane.env.probeTimeout | quote }}
+            - name: CP_CI_HOT_KEY_TTL
+              value: {{ .Values.controlPlane.env.contentIndexHotKeyTTL | quote }}
+            - name: CP_ORIGIN_URL
+              value: {{ include "edge-dispatch.originUrl" . | quote }}
+            - name: PG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: pg-user
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: pg-password
+            - name: PG_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "edge-dispatch.fullname" . }}-secrets
+                  key: pg-database
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: api
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.controlPlane.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edge-dispatch.fullname" . }}-control-plane
+  labels:
+    {{- include "edge-dispatch.labels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane
+spec:
+  type: {{ .Values.controlPlane.service.type }}
+  ports:
+    - name: api
+      port: {{ .Values.controlPlane.service.port }}
+      targetPort: api
+      protocol: TCP
+    - name: admin
+      port: {{ .Values.controlPlane.service.adminPort }}
+      targetPort: admin
+      protocol: TCP
+  selector:
+    {{- include "edge-dispatch.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane
+{{- end }}

@@ -1,0 +1,189 @@
+global:
+  image:
+    repository: darkinno/edge-dispatch
+    tag: "0.6.0"
+    pullPolicy: IfNotPresent
+
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  replicas: 1
+  storage:
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    user: edf
+    password: edf
+    database: edf
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+controlPlane:
+  enabled: true
+  replicas: 1
+  image:
+    repository: darkinno/edge-dispatch
+    tag: "0.6.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+    adminPort: 8082
+  env:
+    listenAddr: ":8080"
+    tokenSecret: "change-me-in-production"
+    adminEnabled: "false"
+    adminJwtSecret: ""
+    adminAccessKey: ""
+    adminSecretKey: ""
+    maxCandidates: "5"
+    defaultTTLMs: "30000"
+    degradeToOrigin: "true"
+    heartbeatTTL: "30s"
+    probeInterval: "10s"
+    probeTimeout: "5s"
+    contentIndexHotKeyTTL: "5m"
+    rateLimitRPS: "1000"
+    rateLimitBurst: "2000"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 128Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+gateway:
+  enabled: true
+  replicas: 1
+  image:
+    repository: darkinno/edge-dispatch
+    tag: "0.6.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    proxyPort: 8880
+    tunnelPort: 7700
+    quicPort: 9443
+  env:
+    listenAddr: ":8880"
+    tunnelAddr: ":7700"
+    authToken: "change-me-in-production"
+    cpToken: "change-me-in-production"
+    readTimeout: "30s"
+    writeTimeout: "60s"
+    idleTimeout: "120s"
+    quicEnabled: "false"
+    quicListenAddr: ":9443"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 128Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+edgeAgent:
+  enabled: true
+  replicas: 2
+  image:
+    repository: darkinno/edge-dispatch
+    tag: "0.6.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 9090
+    quicPort: 9443
+  env:
+    listenAddr: ":9090"
+    cacheDir: "/data/edf-cache"
+    cacheMaxGB: "10"
+    heartbeatInterval: "10s"
+    nodeToken: "change-me-in-production"
+    region: ""
+    isp: ""
+    natMode: "false"
+    tunnelServerAddr: ""
+    tunnelAuthToken: ""
+    quicEnabled: "false"
+    quicListenAddr: ":9443"
+    shieldMode: "false"
+    p2pEnabled: "false"
+    prefetchEnabled: "false"
+    tlsEnabled: "false"
+    tlsAutoCert: "false"
+  persistence:
+    enabled: true
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+dnsAdapter:
+  enabled: false
+  replicas: 1
+  image:
+    repository: darkinno/edge-dispatch
+    tag: "0.6.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: LoadBalancer
+    port: 53
+  env:
+    listenAddr: ":5353"
+    domain: "cdn.example.com"
+    ttlSeconds: "30"
+    refreshInterval: "10s"
+    tokenSecret: "change-me-in-production"
+    contentAwareScore: "25.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
+origin:
+  enabled: true
+  replicas: 1
+  image:
+    repository: darkinno/edge-dispatch
+    tag: "0.6.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 7070
+  env:
+    listenAddr: ":7070"
+    dataDir: "/data/origin"
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
