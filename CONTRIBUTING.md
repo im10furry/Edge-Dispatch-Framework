@@ -14,7 +14,7 @@
 
 ### 前置条件
 
-- Go 1.22+
+- Go 1.25+
 - Docker & Docker Compose
 - Git
 
