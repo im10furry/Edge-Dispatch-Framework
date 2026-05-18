@@ -88,7 +88,7 @@ For quickly experiencing all features on a **single machine**.
 ### Prerequisites
 
 - Docker & Docker Compose
-- Go 1.22+ (only needed for local development)
+- Go 1.25+ (only needed for local development)
 
 ### One-Click Start
 
@@ -429,7 +429,7 @@ docker push your-registry/edf-edge-agent:latest
 │   ├── gateway/                  # Gateway Reverse Proxy
 │   ├── metrics/                  # Prometheus Metrics (v0.5)
 │   ├── models/                   # Shared data models
-│   ├── quic/                     # HTTP/3 QUIC (placeholder)
+│   ├── quic/                     # HTTP/3 QUIC
 │   ├── store/                    # PostgreSQL + Redis storage layer
 │   ├── streaming/                # HLS/DASH streaming support (v0.4)
 │   └── tunnel/                   # Reverse Tunnel Protocol (v0.3)

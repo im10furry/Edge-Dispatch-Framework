@@ -6,7 +6,7 @@
 
 ## 项目概述
 
-**Edge Dispatch Framework** 是一个开源边缘分发/加速框架，使用 Go 1.22 开发。核心功能是通过中心调度将用户请求分配到最优边缘节点，支持 302 重定向、DNS/GSLB、网关反代等多种接入方式。
+**Edge Dispatch Framework** 是一个开源边缘分发/加速框架，使用 Go 1.25 开发。核心功能是通过中心调度将用户请求分配到最优边缘节点，支持 302 重定向、DNS/GSLB、网关反代等多种接入方式。
 
 **模块路径**：`github.com/darkinno/edge-dispatch-framework`
 
@@ -14,7 +14,7 @@
 
 | 组件 | 技术 |
 |------|------|
-| 语言 | Go 1.22 |
+| 语言 | Go 1.25 |
 | HTTP 路由 | chi/v5 |
 | 数据库 | PostgreSQL 16（pgx/v5） |
 | 缓存/消息 | Redis 7（go-redis/v9） |
@@ -43,7 +43,7 @@ internal/               # 核心库（不可导出）
   gateway/              # 网关反代
   metrics/              # Prometheus 指标
   models/               # 共享数据模型
-  quic/                 # HTTP/3（占位）
+  quic/                 # HTTP/3 QUIC 服务器
   store/                # PG + Redis 存储层
   streaming/            # HLS/DASH 流媒体
   tunnel/               # 反向隧道协议
@@ -166,8 +166,9 @@ if err := store.Upsert(ctx, data); err != nil {
 | v0.1 | ✅ 完成 | — |
 | v0.2 | ✅ 完成 | — |
 | v0.3 | ✅ 完成 | — |
-| v0.4 | ⚠️ 部分完成 | HTTP/3 是占位符、DASH 硬编码 50 分段、预取 URL 硬编码 |
-| v0.5 | ✅ 基本完成 | HTTP/3 占位、Helm Chart 未实现 |
+| v0.4 | ✅ 完成 | DASH 分段数已动态化、预取 URL 已动态化（v0.6 修复） |
+| v0.5 | ✅ 基本完成 | HTTP/3 QUIC 已实现（build tag `quic`）、Helm Chart 已实现 |
+| v0.6 | ⚠️ 开发中 | 小带宽优化 + P2P + 智能预取 + Admin UI + Helm Chart 完成，QUIC 客户端待实现 |
 
 ## 已知 Bug（需优先修复）
 

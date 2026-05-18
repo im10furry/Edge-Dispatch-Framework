@@ -69,9 +69,16 @@
 - **IPv6 双栈支持**：监听失败时自动回退 `[::]:port` 启用 IPv4/v6 双栈
 - **Origin Shield 模式**：`EA_SHIELD_MODE=true` 标记为中间缓存层，调度 +20 分，P2P 优先，不限速
 
+### 新增 (v0.6 — 基础设施)
+
+- **Helm Chart**：`charts/edge-dispatch/` Kubernetes 部署，支持 control-plane、gateway、edge-agent、dns-adapter、origin、postgres、redis 全栈部署
+- **DASH 分段数动态化**：从 manifest `mediaPresentationDuration` 动态计算分段数，替代硬编码 50 段
+- **预取 URL 动态化**：从 manifest 解析 URL 模板，替代硬编码 URL 模式
+- **配置扩展**：`StreamingConfig` 新增 `MaxDASHSegments` 限制最大分段数
+- **测试覆盖补齐**：store、edgeagent、gateway、config、autotls 共新增 110+ 测试用例
+
 ### 计划
-- HTTP/3 QUIC 支持
-- Helm Chart 部署
+- QUIC 客户端实现（网关→边缘节点 QUIC 加速）
 
 ---
 
