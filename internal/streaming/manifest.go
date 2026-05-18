@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"encoding/xml"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/darkinno/edge-dispatch-framework/internal/config"
 	"github.com/darkinno/edge-dispatch-framework/internal/models"
 )
 
@@ -66,8 +68,9 @@ func ParseHLSManifest(streamKey string, data []byte) (*models.ManifestInfo, erro
 // ─── DASH (MPEG-DASH .mpd) parsing ────────────────────────────────
 
 type mpdRoot struct {
-	XMLName xml.Name  `xml:"MPD"`
-	Periods []mpdPeriod `xml:"Period"`
+	XMLName                  xml.Name   `xml:"MPD"`
+	MediaPresentationDuration string    `xml:"mediaPresentationDuration,attr"`
+	Periods                  []mpdPeriod `xml:"Period"`
 }
 
 type mpdPeriod struct {
@@ -100,6 +103,11 @@ type mpdSegmentURL struct {
 
 // ParseDASHManifest parses an MPEG-DASH manifest (.mpd) and extracts chunk info.
 func ParseDASHManifest(streamKey string, data []byte) (*models.ManifestInfo, error) {
+	return ParseDASHManifestWithConfig(streamKey, data, config.DefaultStreamingConfig())
+}
+
+// ParseDASHManifestWithConfig parses a DASH manifest with a specific config for segment limits.
+func ParseDASHManifestWithConfig(streamKey string, data []byte, cfg *config.StreamingConfig) (*models.ManifestInfo, error) {
 	var root mpdRoot
 	if err := xml.Unmarshal(data, &root); err != nil {
 		return nil, fmt.Errorf("unmarshal mpd: %w", err)
@@ -110,6 +118,13 @@ func ParseDASHManifest(streamKey string, data []byte) (*models.ManifestInfo, err
 		Type:      models.StreamTypeDASH,
 		UpdatedAt: time.Now().Unix(),
 	}
+
+	maxSegments := 200
+	if cfg != nil && cfg.MaxDASHSegments > 0 {
+		maxSegments = cfg.MaxDASHSegments
+	}
+
+	manifestDur := parseISO8601Duration(root.MediaPresentationDuration)
 
 	for _, period := range root.Periods {
 		for _, as := range period.AdaptationSets {
@@ -123,7 +138,11 @@ func ParseDASHManifest(streamKey string, data []byte) (*models.ManifestInfo, err
 				if startNum == 0 {
 					startNum = 1
 				}
-				segmentCount := int64(50)
+				segmentCount := int64(maxSegments)
+				if manifestDur > 0 && totalDurMs > 0 {
+					computed := int64(math.Ceil(float64(manifestDur) / float64(totalDurMs)))
+					segmentCount = min(computed, int64(maxSegments))
+				}
 				for i := int64(0); i < segmentCount; i++ {
 					seq := startNum + i
 					chunk := models.ChunkInfo{
@@ -184,4 +203,31 @@ func IdentifyStreamType(key string, contentType string) models.StreamType {
 		return models.StreamTypeDASH
 	}
 	return ""
+}
+
+func parseISO8601Duration(s string) int64 {
+	if s == "" || !strings.HasPrefix(s, "PT") {
+		return 0
+	}
+	s = s[2:]
+	var totalMs float64
+	hours, minutes, seconds := 0.0, 0.0, 0.0
+
+	idxH := strings.IndexByte(s, 'H')
+	if idxH >= 0 {
+		hours, _ = strconv.ParseFloat(s[:idxH], 64)
+		s = s[idxH+1:]
+	}
+	idxM := strings.IndexByte(s, 'M')
+	if idxM >= 0 {
+		minutes, _ = strconv.ParseFloat(s[:idxM], 64)
+		s = s[idxM+1:]
+	}
+	idxS := strings.IndexByte(s, 'S')
+	if idxS >= 0 {
+		seconds, _ = strconv.ParseFloat(s[:idxS], 64)
+	}
+
+	totalMs = (hours*3600 + minutes*60 + seconds) * 1000
+	return int64(totalMs)
 }

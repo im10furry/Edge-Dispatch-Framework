@@ -150,6 +150,7 @@ type StreamingConfig struct {
 	ManifestTTL     time.Duration
 	ChunkDurationMs int64
 	StreamType      string
+	MaxDASHSegments int
 }
 
 // DefaultStreamingConfig returns sensible defaults for streaming.
@@ -162,6 +163,7 @@ func DefaultStreamingConfig() *StreamingConfig {
 		ManifestTTL:     durationEnv("STREAM_MANIFEST_TTL", 5*time.Second),
 		ChunkDurationMs: int64(intEnv("STREAM_CHUNK_DURATION_MS", 2000)),
 		StreamType:      getEnv("STREAM_TYPE", ""),
+		MaxDASHSegments: intEnv("STREAM_DASH_MAX_SEGMENTS", 200),
 	}
 }
 

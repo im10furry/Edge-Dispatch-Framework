@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,6 +41,7 @@ type PrefetchManager struct {
 type streamState struct {
 	lastSeq     int64
 	lastRefresh time.Time
+	urlTemplate string
 }
 
 type prefetchJob struct {
@@ -133,10 +136,14 @@ func (pm *PrefetchManager) OnChunkRequest(streamKey string, seqNum int64) {
 		if pm.window.HasChunk(context.Background(), streamKey, nextSeq) {
 			continue
 		}
+		chunkURL := fmt.Sprintf("%s/obj/%s", pm.originURL, ChunkCacheKey(streamKey, nextSeq))
+		if state.urlTemplate != "" {
+			chunkURL = formatChunkURL(state.urlTemplate, nextSeq)
+		}
 		chunks = append(chunks, models.ChunkInfo{
 			StreamKey:  streamKey,
 			SeqNum:     nextSeq,
-			URL:        fmt.Sprintf("%s/obj/%s/%s_segment_%03d.ts", pm.originURL, streamKey, streamKey, nextSeq),
+			URL:        chunkURL,
 			DurationMs: pm.cfg.ChunkDurationMs,
 		})
 	}
@@ -166,8 +173,13 @@ func (pm *PrefetchManager) OnManifestUpdate(m *models.ManifestInfo) {
 
 	pm.mu.Lock()
 	state := pm.streams[m.StreamKey]
-	if state != nil {
-		state.lastRefresh = time.Now()
+	if state == nil {
+		state = &streamState{}
+		pm.streams[m.StreamKey] = state
+	}
+	state.lastRefresh = time.Now()
+	if len(m.Chunks) > 0 && m.Chunks[0].URL != "" {
+		state.urlTemplate = m.Chunks[0].URL
 	}
 	pm.mu.Unlock()
 
@@ -283,4 +295,8 @@ func (pm *PrefetchManager) processJob(ctx context.Context, job prefetchJob) {
 // Stats returns current prefetch metrics.
 func (pm *PrefetchManager) Stats() (prefetched, failed int64) {
 	return pm.prefetched.Load(), pm.failed.Load()
+}
+
+func formatChunkURL(template string, seqNum int64) string {
+	return strings.ReplaceAll(template, "$Number$", strconv.FormatInt(seqNum, 10))
 }
