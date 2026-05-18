@@ -121,9 +121,9 @@ type ClientConfig struct {
 	KeepAlivePeriod  time.Duration
 }
 
-// Client wraps an HTTP/3 RoundTripper for making QUIC requests.
+// Client wraps an HTTP/3 Transport for making QUIC requests.
 type Client struct {
-	rt *http3.RoundTripper
+	tr *http3.Transport
 }
 
 // NewClient creates a new QUIC client.
@@ -144,28 +144,28 @@ func NewClient(cfg ClientConfig) *Client {
 		cfg.KeepAlivePeriod = 15 * time.Second
 	}
 
-	rt := &http3.RoundTripper{
+	tr := &http3.Transport{
 		TLSClientConfig: tlsConfig,
 		QUICConfig:      &quic.Config{EnableDatagrams: true},
 	}
-	return &Client{rt: rt}
+	return &Client{tr: tr}
 }
 
 // RoundTrip executes a single HTTP request over QUIC.
 func (c *Client) RoundTrip(req *http.Request) (*http.Response, error) {
-	return c.rt.RoundTrip(req)
+	return c.tr.RoundTrip(req)
 }
 
 // Close closes the QUIC client and releases resources.
 func (c *Client) Close() error {
-	return c.rt.Close()
+	return c.tr.Close()
 }
 
 // NewHTTPClient creates a standard *http.Client that uses QUIC transport.
 func NewHTTPClient(cfg ClientConfig) *http.Client {
 	c := NewClient(cfg)
 	return &http.Client{
-		Transport: c.rt,
+		Transport: c.tr,
 		Timeout:   30 * time.Second,
 	}
 }

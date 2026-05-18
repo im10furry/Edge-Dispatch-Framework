@@ -168,7 +168,7 @@ if err := store.Upsert(ctx, data); err != nil {
 | v0.3 | ✅ 完成 | — |
 | v0.4 | ✅ 完成 | DASH 分段数已动态化、预取 URL 已动态化（v0.6 修复） |
 | v0.5 | ✅ 基本完成 | HTTP/3 QUIC 已实现（build tag `quic`）、Helm Chart 已实现 |
-| v0.6 | ⚠️ 开发中 | 小带宽优化 + P2P + 智能预取 + Admin UI + Helm Chart 完成，QUIC 客户端待实现 |
+| v0.6 | ✅ 基本完成 | 小带宽优化 + P2P + 智能预取 + Admin UI + Helm Chart + QUIC 客户端已完成 |
 
 ## 已知 Bug（需优先修复）
 

@@ -15,8 +15,8 @@ func TestNewClient(t *testing.T) {
 	if c == nil {
 		t.Fatal("NewClient returned nil")
 	}
-	if c.rt == nil {
-		t.Fatal("client RoundTripper is nil")
+	if c.tr == nil {
+		t.Fatal("client Transport is nil")
 	}
 	c.Close()
 }
@@ -26,8 +26,8 @@ func TestNewClientDefaults(t *testing.T) {
 	if c == nil {
 		t.Fatal("NewClient returned nil")
 	}
-	if c.rt == nil {
-		t.Fatal("client RoundTripper is nil without TLS config")
+	if c.tr == nil {
+		t.Fatal("client Transport is nil without TLS config")
 	}
 	c.Close()
 }
@@ -165,7 +165,7 @@ func TestClientConfigCustomTimeout(t *testing.T) {
 		MaxIdleTimeout:   60 * time.Second,
 		KeepAlivePeriod:  10 * time.Second,
 	})
-	if c == nil || c.rt == nil {
+	if c == nil || c.tr == nil {
 		t.Fatal("NewClient returned nil with custom config")
 	}
 	c.Close()

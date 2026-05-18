@@ -75,10 +75,11 @@
 - **DASH 分段数动态化**：从 manifest `mediaPresentationDuration` 动态计算分段数，替代硬编码 50 段
 - **预取 URL 动态化**：从 manifest 解析 URL 模板，替代硬编码 URL 模式
 - **配置扩展**：`StreamingConfig` 新增 `MaxDASHSegments` 限制最大分段数
-- **测试覆盖补齐**：store、edgeagent、gateway、config、autotls 共新增 110+ 测试用例
+- **QUIC 客户端实现**：`NewClient` / `NewHTTPClient` / `DefaultHTTPClient` 基于 `http3.Transport`，支持 TLS 配置和自定义超时
+- **测试覆盖补齐**：store、edgeagent、gateway、config、autotls、quic 共新增 120+ 测试用例
 
 ### 计划
-- QUIC 客户端实现（网关→边缘节点 QUIC 加速）
+- （无待实现任务）
 
 ---
 
