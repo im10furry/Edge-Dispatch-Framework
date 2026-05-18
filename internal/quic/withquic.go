@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
@@ -108,4 +109,71 @@ func (s *Server) Addr() string {
 		return ln.Addr().String()
 	}
 	return s.cfg.Addr
+}
+
+// ─── QUIC Client ────────────────────────────────────────────────────
+
+// ClientConfig holds QUIC client configuration.
+type ClientConfig struct {
+	TLSConfig      *tls.Config
+	HandshakeTimeout time.Duration
+	MaxIdleTimeout   time.Duration
+	KeepAlivePeriod  time.Duration
+}
+
+// Client wraps an HTTP/3 RoundTripper for making QUIC requests.
+type Client struct {
+	rt *http3.RoundTripper
+}
+
+// NewClient creates a new QUIC client.
+func NewClient(cfg ClientConfig) *Client {
+	if cfg.TLSConfig == nil {
+		slog.Warn("quic: no TLS config provided for client, using InsecureSkipVerify fallback")
+		cfg.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	tlsConfig := cfg.TLSConfig.Clone()
+	if cfg.HandshakeTimeout == 0 {
+		cfg.HandshakeTimeout = 10 * time.Second
+	}
+	if cfg.MaxIdleTimeout == 0 {
+		cfg.MaxIdleTimeout = 30 * time.Second
+	}
+	if cfg.KeepAlivePeriod == 0 {
+		cfg.KeepAlivePeriod = 15 * time.Second
+	}
+
+	rt := &http3.RoundTripper{
+		TLSClientConfig: tlsConfig,
+		QUICConfig:      &quic.Config{EnableDatagrams: true},
+	}
+	return &Client{rt: rt}
+}
+
+// RoundTrip executes a single HTTP request over QUIC.
+func (c *Client) RoundTrip(req *http.Request) (*http.Response, error) {
+	return c.rt.RoundTrip(req)
+}
+
+// Close closes the QUIC client and releases resources.
+func (c *Client) Close() error {
+	return c.rt.Close()
+}
+
+// NewHTTPClient creates a standard *http.Client that uses QUIC transport.
+func NewHTTPClient(cfg ClientConfig) *http.Client {
+	c := NewClient(cfg)
+	return &http.Client{
+		Transport: c.rt,
+		Timeout:   30 * time.Second,
+	}
+}
+
+// DefaultHTTPClient returns a QUIC-capable HTTP client with InsecureSkipVerify.
+// Use only for internal service-to-service communication where TLS is self-signed.
+func DefaultHTTPClient() *http.Client {
+	return NewHTTPClient(ClientConfig{
+		TLSConfig: &tls.Config{InsecureSkipVerify: true},
+	})
 }
