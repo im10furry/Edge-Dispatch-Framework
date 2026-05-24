@@ -622,8 +622,14 @@ func (a *AdminAPI) handleListNodes(w http.ResponseWriter, r *http.Request) {
 	statusFilter := r.URL.Query().Get("status")
 	regionFilter := r.URL.Query().Get("region")
 	ispFilter := r.URL.Query().Get("isp")
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		slog.Warn("invalid limit param", "err", err, "value", r.URL.Query().Get("limit"))
+	}
+	offset, err := strconv.Atoi(r.URL.Query().Get("offset"))
+	if err != nil {
+		slog.Warn("invalid offset param", "err", err, "value", r.URL.Query().Get("offset"))
+	}
 	if limit <= 0 {
 		limit = 50
 	}
@@ -752,10 +758,14 @@ func (a *AdminAPI) handlePatchNode(w http.ResponseWriter, r *http.Request) {
 	updateArgs := []any{}
 	argIdx := 1
 	if patch.Labels != nil {
-		labelsJSON, _ := json.Marshal(patch.Labels)
-		updateQuery += fmt.Sprintf(", labels=$%d", argIdx)
-		updateArgs = append(updateArgs, labelsJSON)
-		argIdx++
+		labelsJSON, err := json.Marshal(patch.Labels)
+		if err != nil {
+			slog.Warn("failed to marshal labels", "err", err)
+		} else {
+			updateQuery += fmt.Sprintf(", labels=$%d", argIdx)
+			updateArgs = append(updateArgs, labelsJSON)
+			argIdx++
+		}
 	}
 	if patch.Weight != nil {
 		updateQuery += fmt.Sprintf(", weight=$%d", argIdx)
@@ -879,7 +889,10 @@ func (a *AdminAPI) handleUpdatePolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Re-get to have updated version number
-	updated, _ := a.pg.GetAdminPolicy(r.Context(), policyID)
+	updated, err := a.pg.GetAdminPolicy(r.Context(), policyID)
+	if err != nil {
+		slog.Warn("failed to re-get policy after update", "policy_id", policyID, "err", err)
+	}
 	if updated != nil {
 		pv := &models.AdminPolicyVersion{
 			PolicyID: updated.PolicyID,
@@ -919,7 +932,11 @@ func (a *AdminAPI) handleRollbackPolicy(w http.ResponseWriter, r *http.Request) 
 		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "version parameter required")
 		return
 	}
-	version, _ := strconv.Atoi(versionStr)
+	version, err := strconv.Atoi(versionStr)
+	if err != nil {
+		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid version parameter")
+		return
+	}
 	versions, err := a.pg.GetPolicyVersions(r.Context(), policyID)
 	if err != nil || len(versions) == 0 {
 		a.writeError(w, http.StatusNotFound, "NOT_FOUND", "version not found")
@@ -1067,7 +1084,11 @@ func (a *AdminAPI) createCacheTask(w http.ResponseWriter, r *http.Request, taskT
 		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 		return
 	}
-	paramsJSON, _ := json.Marshal(params)
+	paramsJSON, err := json.Marshal(params)
+	if err != nil {
+		a.writeError(w, http.StatusInternalServerError, "ENCODE_FAILED", "failed to encode task params")
+		return
+	}
 
 	task := &models.Task{
 		TenantID:  r.Header.Get("X-Actor-TenantId"),
@@ -1102,8 +1123,14 @@ func (a *AdminAPI) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("X-Actor-TenantId")
 	statusFilter := r.URL.Query().Get("status")
 	taskType := r.URL.Query().Get("type")
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		slog.Warn("invalid limit param", "err", err, "value", r.URL.Query().Get("limit"))
+	}
+	offset, err := strconv.Atoi(r.URL.Query().Get("offset"))
+	if err != nil {
+		slog.Warn("invalid offset param", "err", err, "value", r.URL.Query().Get("offset"))
+	}
 	if limit <= 0 {
 		limit = 50
 	}
