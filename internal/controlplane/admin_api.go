@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
@@ -87,6 +88,7 @@ func NewAdminAPI(pg *store.PGStore, redis *store.RedisStore, registry *Registry,
 	}
 
 	r := chi.NewRouter()
+	r.Use(middleware.Recoverer)
 
 	// Health check for admin API
 	r.Get("/healthz", a.handleAdminHealthz)
