@@ -1231,7 +1231,9 @@ func (a *AdminAPI) handleExportAudit(w http.ResponseWriter, r *http.Request) {
 	if format == "json" {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Disposition", `attachment; filename="audit-export.json"`)
-		json.NewEncoder(w).Encode(events)
+		if err := json.NewEncoder(w).Encode(events); err != nil {
+			slog.Warn("encode audit export response", "err", err)
+		}
 		return
 	}
 

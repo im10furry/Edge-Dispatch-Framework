@@ -117,7 +117,9 @@ func (s *Scheduler) handleAdminGetConfig(w http.ResponseWriter, r *http.Request)
 		},
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(cfg)
+	if err := json.NewEncoder(w).Encode(cfg); err != nil {
+		slog.Warn("encode config response", "err", err)
+	}
 }
 
 func (s *Scheduler) handleAdminUpdateConfig(w http.ResponseWriter, r *http.Request) {
@@ -145,13 +147,17 @@ func (s *Scheduler) handleAdminUpdateConfig(w http.ResponseWriter, r *http.Reque
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+		slog.Warn("encode config update response", "err", err)
+	}
 }
 
 func (s *Scheduler) handleAdminApplyConfig(w http.ResponseWriter, r *http.Request) {
 	slog.Info("global config applied via admin API — changes take effect immediately")
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "applied", "message": "Configuration applied to all nodes"})
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "applied", "message": "Configuration applied to all nodes"}); err != nil {
+		slog.Warn("encode config apply response", "err", err)
+	}
 }
 
 func (s *Scheduler) handleAdminP2PTopology(w http.ResponseWriter, r *http.Request) {
@@ -178,7 +184,9 @@ func (s *Scheduler) handleAdminP2PTopology(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(topo)
+	if err := json.NewEncoder(w).Encode(topo); err != nil {
+		slog.Warn("encode topology response", "err", err)
+	}
 }
 
 func (s *Scheduler) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
@@ -205,7 +213,9 @@ func (s *Scheduler) handleAdminDashboard(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(dashboard)
+	if err := json.NewEncoder(w).Encode(dashboard); err != nil {
+		slog.Warn("encode dashboard response", "err", err)
+	}
 }
 
 func (s *Scheduler) handleAdminPrewarm(w http.ResponseWriter, r *http.Request) {
@@ -296,9 +306,11 @@ func (s *Scheduler) handleAdminPrewarm(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"keys_total":    len(req.Keys),
 		"nodes_pushed":  len(results),
 		"node_results":  results,
-	})
+	}); err != nil {
+		slog.Warn("encode prewarm response", "err", err)
+	}
 }

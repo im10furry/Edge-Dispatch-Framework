@@ -559,7 +559,13 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	buf := bufPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	defer bufPool.Put(buf)
-	json.NewEncoder(buf).Encode(map[string]string{"status": "ok"})
+	if err := json.NewEncoder(buf).Encode(map[string]string{"status": "ok"}); err != nil {
+		slog.Error("encode healthz", "err", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(buf.Bytes())
@@ -603,7 +609,11 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		buf := bufPool.Get().(*bytes.Buffer)
 		buf.Reset()
 		defer bufPool.Put(buf)
-		json.NewEncoder(buf).Encode(data)
+		if err := json.NewEncoder(buf).Encode(data); err != nil {
+			slog.Error("encode metrics json", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(buf.Bytes())
 		return
@@ -730,10 +740,12 @@ func (s *Server) handlePrewarm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"total":   len(req.Keys),
 		"results": results,
-	})
+	}); err != nil {
+		slog.Warn("encode prewarm response", "err", err)
+	}
 }
 
 func (s *Server) handleP2PFetch(w http.ResponseWriter, r *http.Request) {
