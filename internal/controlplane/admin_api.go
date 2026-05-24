@@ -288,7 +288,7 @@ func (a *AdminAPI) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("failed to rotate refresh token", "user_id", user.UserID, "err", err)
 	}
 
-	a.writeJSON(w, http.StatusOK, map[string]interface{}{
+	a.writeJSON(w, http.StatusOK, map[string]any{
 		"token":         token,
 		"expires_at":    exp,
 		"refresh_token": newRefreshToken,
@@ -749,7 +749,7 @@ func (a *AdminAPI) handlePatchNode(w http.ResponseWriter, r *http.Request) {
 
 	// Handle patching labels, weight, project_id, tenant_id
 	updateQuery := `UPDATE nodes SET updated_at=NOW()`
-	updateArgs := []interface{}{}
+	updateArgs := []any{}
 	argIdx := 1
 	if patch.Labels != nil {
 		labelsJSON, _ := json.Marshal(patch.Labels)

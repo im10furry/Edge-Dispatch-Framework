@@ -278,7 +278,7 @@ func (s *Scheduler) handleAdminPrewarm(w http.ResponseWriter, r *http.Request) {
 			}
 			defer resp.Body.Close()
 
-			var pushResult map[string]interface{}
+			var pushResult map[string]any
 			io.ReadAll(io.LimitReader(resp.Body, 65536))
 			json.NewDecoder(bytes.NewReader(nil)).Decode(&pushResult)
 			_ = pushResult
@@ -296,7 +296,7 @@ func (s *Scheduler) handleAdminPrewarm(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"keys_total":    len(req.Keys),
 		"nodes_pushed":  len(results),
 		"node_results":  results,

@@ -737,7 +737,7 @@ func (r *RedisStore) SaveHeartbeat(ctx context.Context, hb models.HeartbeatReque
 	tsBuf := make([]byte, 8)
 	binary.BigEndian.PutUint64(tsBuf, uint64(hb.TS))
 	pipe := r.client.Pipeline()
-	pipe.HSet(ctx, key, map[string]interface{}{
+	pipe.HSet(ctx, key, map[string]any{
 		"d":     data,
 		"ts":    tsBuf,
 		"lseen": tsBuf,
@@ -757,7 +757,7 @@ func (r *RedisStore) PipelineSaveHeartbeats(ctx context.Context, hbs []models.He
 		}
 		tsBuf := make([]byte, 8)
 		binary.BigEndian.PutUint64(tsBuf, uint64(hbs[i].TS))
-		pipe.HSet(ctx, key, map[string]interface{}{
+		pipe.HSet(ctx, key, map[string]any{
 			"d":     data,
 			"ts":    tsBuf,
 			"lseen": tsBuf,
@@ -1155,7 +1155,7 @@ func (s *PGStore) GetAdminPolicy(ctx context.Context, policyID string) (*models.
 
 func (s *PGStore) ListAdminPolicies(ctx context.Context, tenantID, projectID string) ([]*models.AdminPolicy, error) {
 	query := `SELECT policy_id, tenant_id, project_id, name, type, content, version, is_published, description, created_at, updated_at FROM admin_policies WHERE 1=1`
-	args := []interface{}{}
+	args := []any{}
 	i := 1
 	if tenantID != "" {
 		query += fmt.Sprintf(" AND tenant_id=$%d", i)
@@ -1278,7 +1278,7 @@ func (s *PGStore) GetIngress(ctx context.Context, ingressID string) (*models.Ing
 
 func (s *PGStore) ListIngresses(ctx context.Context, tenantID, projectID string) ([]*models.Ingress, error) {
 	query := `SELECT ingress_id, tenant_id, project_id, name, type, domain, config, created_at, updated_at FROM ingresses WHERE 1=1`
-	args := []interface{}{}
+	args := []any{}
 	i := 1
 	if tenantID != "" {
 		query += fmt.Sprintf(" AND tenant_id=$%d", i)
@@ -1357,7 +1357,7 @@ func (s *PGStore) ListTasks(ctx context.Context, tenantID, statusFilter, taskTyp
 	var total int
 	countQuery := `SELECT COUNT(*) FROM tasks WHERE 1=1`
 	listQuery := `SELECT task_id, tenant_id, project_id, creator_id, type, status, params, result, progress, total_nodes, done_nodes, created_at, updated_at FROM tasks WHERE 1=1`
-	args := []interface{}{}
+	args := []any{}
 	i := 1
 	if tenantID != "" {
 		cond := fmt.Sprintf(" AND tenant_id=$%d", i)
@@ -1433,7 +1433,7 @@ func (s *PGStore) QueryAuditEvents(ctx context.Context, query models.AuditQuery)
 	}
 	countQuery := `SELECT COUNT(*) FROM audit_events WHERE 1=1`
 	listQuery := `SELECT id, tenant_id, project_id, actor_id, actor_email, action, resource_type, resource_id, before, after, request_id, source_ip, user_agent, result, created_at FROM audit_events WHERE 1=1`
-	args := []interface{}{}
+	args := []any{}
 	i := 1
 	if query.ActorID != "" {
 		cond := fmt.Sprintf(" AND actor_id=$%d", i)
@@ -1576,7 +1576,7 @@ func (s *PGStore) ListNodes(ctx context.Context, tenantID, statusFilter, regionF
 	var total int
 	countQuery := `SELECT COUNT(*) FROM nodes WHERE 1=1`
 	listQuery := `SELECT node_id, tenant_id, project_id, name, endpoints, region, isp, asn, capabilities, status, weight, labels, disable_reason, maintain_until, last_seen_at, scores, created_at, updated_at FROM nodes WHERE 1=1`
-	args := []interface{}{}
+	args := []any{}
 	i := 1
 	if tenantID != "" {
 		cond := fmt.Sprintf(" AND tenant_id=$%d", i)

@@ -128,17 +128,17 @@ func ReadMessage(r io.Reader) (*Message, error) {
 }
 
 // MarshalPayload marshals a payload to JSON bytes.
-func MarshalPayload(v interface{}) ([]byte, error) {
+func MarshalPayload(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
 // UnmarshalPayload unmarshals JSON bytes to a target struct.
-func UnmarshalPayload(data []byte, v interface{}) error {
+func UnmarshalPayload(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 
 // NewControlMessage creates a control message with JSON payload.
-func NewControlMessage(msgType MessageType, streamID uint32, payload interface{}) (*Message, error) {
+func NewControlMessage(msgType MessageType, streamID uint32, payload any) (*Message, error) {
 	data, err := MarshalPayload(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal payload: %w", err)

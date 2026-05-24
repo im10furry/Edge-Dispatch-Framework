@@ -581,7 +581,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.URL.Query().Get("format") == "json" {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"requests":       s.metrics.requests.Load(),
 			"cache_hits":     s.metrics.cacheHits.Load(),
 			"cache_misses":   s.metrics.cacheMisses.Load(),
@@ -591,7 +591,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 				"ingress_mbps": ingress,
 				"egress_mbps":  egress,
 			},
-			"cpu": map[string]interface{}{
+			"cpu": map[string]any{
 				"goroutines": runtime.NumGoroutine(),
 				"num_cpu":    runtime.NumCPU(),
 			},
@@ -730,7 +730,7 @@ func (s *Server) handlePrewarm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"total":   len(req.Keys),
 		"results": results,
 	})
