@@ -1171,7 +1171,7 @@ func (a *AdminAPI) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.audit(r, models.AuditActionTaskCancel, "task", taskID, "", "success")
-	a.writeJSON(w, http.StatusOK, map[string]string{"status": "cancelled", "task_id": taskID})
+	a.writeJSON(w, http.StatusOK, map[string]string{"status": "canceled", "task_id": taskID})
 }
 
 // ─── Audit Handlers ────────────────────────────────────────────

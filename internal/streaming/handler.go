@@ -34,7 +34,6 @@ type streamingMetrics struct {
 	chunkRequests    atomic.Int64
 	chunkCacheHits   atomic.Int64
 	chunkCacheMisses atomic.Int64
-	prefetched       atomic.Int64
 	manifestFetches  atomic.Int64
 	latencySum       atomic.Int64
 }

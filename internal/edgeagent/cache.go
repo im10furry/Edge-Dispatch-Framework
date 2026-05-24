@@ -111,10 +111,6 @@ func (c *Cache) contentPath(key string) string {
 	return filepath.Join(c.keyPath(key), "content")
 }
 
-func (c *Cache) metaPath(key string) string {
-	return filepath.Join(c.keyPath(key), "meta.json")
-}
-
 func (c *Cache) Get(ctx context.Context, key string) (io.ReadCloser, int64, error) {
 	kp := c.keyPath(key)
 	cp := filepath.Join(kp, "content")

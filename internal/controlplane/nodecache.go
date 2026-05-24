@@ -2,7 +2,6 @@ package controlplane
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 
 type NodeCache struct {
 	pg       *store.PGStore
-	mu       sync.Mutex // only protects the refresh path
 	nodes    atomic.Value // stores []*models.Node
 	cachedAt atomic.Int64 // stores time.Now().UnixNano()
 	ttl      int64

@@ -59,7 +59,6 @@ type Gateway struct {
 	cancel       context.CancelFunc
 	promMetrics  *gwMetrics
 	transport    *http.Transport
-	reverseProxy *httputil.ReverseProxy
 }
 
 type gwMetrics struct {

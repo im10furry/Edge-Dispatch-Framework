@@ -17,12 +17,12 @@ import (
 
 // Edge coordinates all edge agent components.
 type Edge struct {
-	cfg          *config.EdgeAgentConfig
-	cache        *Cache
-	fetcher      *Fetcher
-	server       *Server
-	reporter     *Reporter
-	tunnelClient *tunnel.Client // nil if not in NAT mode
+	cfg           *config.EdgeAgentConfig
+	cache         *Cache
+	fetcher       *Fetcher
+	server        *Server
+	reporter      *Reporter
+	tunnelClient  *tunnel.Client // nil if not in NAT mode
 	prefetchMgr   *streaming.PrefetchManager
 	smartPrefetch *SmartPrefetchManager
 	localConfig   *localconfig.LocalConfigServer
@@ -178,7 +178,7 @@ func (e *Edge) Start(ctx context.Context) error {
 		slog.Warn("local config UI failed to start", "err", err)
 	}
 
-	// Start the HTTP server (blocks until ctx cancelled)
+	// Start the HTTP server (blocks until ctx canceled)
 	if err := e.server.Start(ctx); err != nil {
 		return fmt.Errorf("start server: %w", err)
 	}

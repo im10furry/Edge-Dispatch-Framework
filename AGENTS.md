@@ -21,10 +21,12 @@
 | ID 生成 | google/uuid |
 | 容器化 | Docker Compose |
 | 测试 | 标准 `testing` 包 |
+| 前端 | React 18 + Ant Design 5 + TypeScript + Vite |
 
 ## 目录结构
 
 ```
+ui/                     # 管理控制台前端 (React + Ant Design)
 cmd/                    # 服务入口（main.go）
   control-plane/        # 控制面
   edge-agent/           # 边缘节点
@@ -67,7 +69,7 @@ make bench               # Benchmark
 make integration-test
 
 # 代码检查
-make lint                # go vet
+make lint                # golangci-lint run ./...
 
 # Docker
 make docker-up           # 启动全栈
@@ -169,6 +171,7 @@ if err := store.Upsert(ctx, data); err != nil {
 | v0.4 | ✅ 完成 | DASH 分段数已动态化、预取 URL 已动态化（v0.6 修复） |
 | v0.5 | ✅ 基本完成 | HTTP/3 QUIC 已实现（build tag `quic`）、Helm Chart 已实现 |
 | v0.6 | ✅ 基本完成 | 小带宽优化 + P2P + 智能预取 + Admin UI + Helm Chart + QUIC 客户端已完成 |
+| v0.7 | ✅ 完成 | React 管理控制台已整合到主仓库（`ui/`），嵌入 CP 二进制，通过 `/admin/` 路径访问 |
 
 ## 已知 Bug（需优先修复）
 
@@ -179,9 +182,16 @@ if err := store.Upsert(ctx, data); err != nil {
 ### 添加新的 API 端点
 
 1. 在 `internal/models/models.go` 添加请求/响应类型
-2. 在 `internal/controlplane/api.go` 添加 handler 函数
-3. 在 `NewAPI()` 中注册路由
+2. 在 `internal/controlplane/admin_api.go` 添加 handler 函数
+3. 在 `NewAdminAPI()` 中注册路由
 4. 编写单元测试
+
+### 添加新的前端页面
+
+1. 在 `ui/src/pages/` 创建页面组件
+2. 在 `ui/src/types/api.ts` 添加 TypeScript 类型
+3. 在 `ui/src/router/index.tsx` 注册路由（使用 `React.lazy()` 懒加载）
+4. 后端 API 需在 `internal/controlplane/admin_api.go` 中注册
 
 ### 添加新的调度因子
 

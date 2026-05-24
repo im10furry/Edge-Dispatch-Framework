@@ -22,14 +22,14 @@ import (
 )
 
 type Reporter struct {
-	cfg      *config.EdgeAgentConfig
-	server   *Server
-	cache    *Cache
-	client   *http.Client
-	nodeID   string
-	stopCh   chan struct{}
-	stopped  bool
-	mu       sync.RWMutex
+	cfg     *config.EdgeAgentConfig
+	server  *Server
+	cache   *Cache
+	client  *http.Client
+	nodeID  string
+	stopCh  chan struct{}
+	stopped bool
+	mu      sync.RWMutex
 }
 
 func NewReporter(cfg *config.EdgeAgentConfig, server *Server, cache *Cache) *Reporter {
@@ -79,7 +79,7 @@ func (r *Reporter) reportLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("reporter context cancelled")
+			slog.Info("reporter context canceled")
 			return
 		case <-r.stopCh:
 			slog.Info("reporter stopped")
@@ -197,10 +197,10 @@ func (r *Reporter) Register(ctx context.Context) error {
 	}
 
 	regReq := models.RegisterRequest{
-		NodeName:   "edge-agent",
-		Endpoints:  []models.Endpoint{{Scheme: "http", Host: host, Port: parsePort(r.cfg.ListenAddr)}},
-		Region:     region,
-		ISP:        isp,
+		NodeName:     "edge-agent",
+		Endpoints:    []models.Endpoint{{Scheme: "http", Host: host, Port: parsePort(r.cfg.ListenAddr)}},
+		Region:       region,
+		ISP:          isp,
 		Capabilities: caps,
 	}
 

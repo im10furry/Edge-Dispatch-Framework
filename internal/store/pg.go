@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,23 +20,6 @@ import (
 
 	"github.com/darkinno/edge-dispatch-framework/internal/models"
 )
-
-var uuidBufPool = sync.Pool{
-	New: func() any {
-		b := make([]byte, 0, 12)
-		return &b
-	},
-}
-
-func fastNodeID() string {
-	u := uuid.New()
-	bp := uuidBufPool.Get().(*[]byte)
-	b := (*bp)[:0]
-	b = hex.AppendEncode(b, u[:6])
-	*bp = b
-	uuidBufPool.Put(bp)
-	return "n_" + string(b)
-}
 
 type nodeCacheEntry struct {
 	node      *models.Node

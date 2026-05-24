@@ -1,6 +1,10 @@
-.PHONY: build run clean test docker-up docker-down docker-build docker-cp-up docker-cp-down docker-cp-up-full docker-edge-up docker-edge-down docker-edge-up-full
+.PHONY: build run clean test docker-up docker-down docker-build docker-cp-up docker-cp-down docker-cp-up-full docker-edge-up docker-edge-down docker-edge-up-full ui-build ui-copy ui-dev ui-clean
 
-build:
+UI_DIR    = ui
+UI_DIST   = $(UI_DIR)/dist
+EMBED_DIR = internal/controlplane/adminui/webui
+
+build: ui-copy
 	go build -o bin/control-plane ./cmd/control-plane
 	go build -o bin/edge-agent ./cmd/edge-agent
 	go build -o bin/origin ./cmd/origin
@@ -8,7 +12,7 @@ build:
 	go build -o bin/dns-adapter ./cmd/dns-adapter
 	go build -o bin/gateway ./cmd/gateway
 
-build-quic:
+build-quic: ui-copy
 	go build -tags quic -o bin/control-plane ./cmd/control-plane
 	go build -tags quic -o bin/edge-agent ./cmd/edge-agent
 	go build -tags quic -o bin/origin ./cmd/origin
@@ -30,6 +34,7 @@ run-gateway: build
 
 clean:
 	rm -rf bin/
+	rm -rf $(UI_DIR)/dist $(EMBED_DIR)
 
 # ─── Testing ───────────────────────────────────────────────
 
@@ -145,7 +150,24 @@ docker-edge-down:
 docker-edge-up-full:
 	docker compose -f docker-compose.edge.yml --profile full up -d
 
+# ─── Web UI ──────────────────────────────────────────────
+
+ui-build:
+	cd $(UI_DIR) && npm run build
+
+ui-copy: ui-build
+	rm -rf $(EMBED_DIR)
+	cp -r $(UI_DIST)/* $(EMBED_DIR)/
+
+ui-dev:
+	cd $(UI_DIR) && npm run dev
+
+ui-clean:
+	rm -rf $(UI_DIR)/dist $(EMBED_DIR)
+
 # ─── Lint / Vet ────────────────────────────────────────────
 
 lint:
+	golangci-lint run ./...
+lint-vet:
 	go vet ./...

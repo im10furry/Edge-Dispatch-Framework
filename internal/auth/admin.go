@@ -201,7 +201,6 @@ type jwtHeader struct {
 
 // JWTSession manages JWT token creation and verification.
 type JWTSession struct {
-	mu            sync.RWMutex
 	secret        string
 	expirySeconds int
 }

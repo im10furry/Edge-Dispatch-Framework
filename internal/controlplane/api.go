@@ -1,7 +1,6 @@
 package controlplane
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,12 +24,6 @@ import (
 )
 
 const maxJSONBodySize = 32 << 10
-
-var bufPool = sync.Pool{
-	New: func() any {
-		return new(bytes.Buffer)
-	},
-}
 
 type API struct {
 	registry  *Registry
