@@ -61,8 +61,8 @@ func (c *NodeCache) Invalidate() {
 	c.cachedAt.Store(0)
 }
 
-func (c *NodeCache) GetNodes() ([]models.Node, error) {
-	nodes, err := c.GetActiveNodes(context.Background())
+func (c *NodeCache) GetNodes(ctx context.Context) ([]models.Node, error) {
+	nodes, err := c.GetActiveNodes(ctx)
 	if err != nil {
 		return nil, err
 	}

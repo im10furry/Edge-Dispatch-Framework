@@ -271,7 +271,7 @@ func (s *Scheduler) handleAdminPrewarm(w http.ResponseWriter, r *http.Request) {
 			defer wg.Done()
 			endpoint := node.Endpoints[0].URL()
 			body, _ := json.Marshal(map[string][]string{"keys": req.Keys})
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 			defer cancel()
 
 			httpReq, _ := http.NewRequestWithContext(ctx, "POST",

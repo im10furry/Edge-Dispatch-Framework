@@ -496,11 +496,11 @@ func (a *API) handleHealthz(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	if a.metrics != nil {
-		a.metrics.nodeStatusGauge.Set(float64(a.registry.CountByStatus(string(models.NodeStatusActive))), "active")
-		a.metrics.nodeStatusGauge.Set(float64(a.registry.CountByStatus(string(models.NodeStatusDegraded))), "degraded")
-		a.metrics.nodeStatusGauge.Set(float64(a.registry.CountByStatus(string(models.NodeStatusOffline))), "offline")
-		a.metrics.nodeStatusGauge.Set(float64(a.registry.CountByStatus(string(models.NodeStatusRegistered))), "registered")
-		a.metrics.nodeStatusGauge.Set(float64(a.registry.CountByStatus(string(models.NodeStatusQuarantined))), "quarantined")
+		a.metrics.nodeStatusGauge.Set(float64(a.registry.CountByStatus(r.Context(), string(models.NodeStatusActive))), "active")
+		a.metrics.nodeStatusGauge.Set(float64(a.registry.CountByStatus(r.Context(), string(models.NodeStatusDegraded))), "degraded")
+		a.metrics.nodeStatusGauge.Set(float64(a.registry.CountByStatus(r.Context(), string(models.NodeStatusOffline))), "offline")
+		a.metrics.nodeStatusGauge.Set(float64(a.registry.CountByStatus(r.Context(), string(models.NodeStatusRegistered))), "registered")
+		a.metrics.nodeStatusGauge.Set(float64(a.registry.CountByStatus(r.Context(), string(models.NodeStatusQuarantined))), "quarantined")
 	}
 	metrics.Handler().ServeHTTP(w, r)
 }

@@ -59,8 +59,7 @@ func (r *Registry) UpdateStatus(ctx context.Context, nodeID string, status model
 	return r.pg.UpdateNodeStatus(ctx, nodeID, status)
 }
 
-func (r *Registry) CountByStatus(status string) int {
-	ctx := context.Background()
+func (r *Registry) CountByStatus(ctx context.Context, status string) int {
 	count, err := r.pg.CountByStatus(ctx, status)
 	if err != nil {
 		slog.Warn("count by status failed", "status", status, "err", err)
