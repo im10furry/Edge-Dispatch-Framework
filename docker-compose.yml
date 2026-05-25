@@ -62,7 +62,7 @@ services:
       dockerfile: docker/Dockerfile.gateway
     ports:
       - "8880:8880"   # HTTP proxy
-      - "7700:7700"   # Tunnel server
+      - "8770:7700"   # Tunnel server
       - "9443:9443/udp"  # HTTP/3 QUIC
     environment:
       GW_LISTEN_ADDR: ":8880"
@@ -138,7 +138,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.origin
     ports:
-      - "7070:7070"
+      - "8070:7070"
     environment:
       ORIGIN_LISTEN_ADDR: ":7070"
       ORIGIN_DATA_DIR: "/tmp/edf-origin"
@@ -148,7 +148,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.dns-adapter
     ports:
-      - "5353:5353/udp"
+      - "15353:5353/udp"
     environment:
       DNS_LISTEN_ADDR: ":5353"
       DNS_CONTROL_PLANE_URL: "http://control-plane:8080"
