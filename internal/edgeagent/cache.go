@@ -344,6 +344,20 @@ func (c *Cache) HotKeys(limit int) []string {
 	return keys
 }
 
+// DeleteKeys deletes multiple cache entries by their original keys.
+// Returns a map of key -> error (nil means success).
+func (c *Cache) DeleteKeys(ctx context.Context, keys []string) map[string]error {
+	results := make(map[string]error, len(keys))
+	for _, key := range keys {
+		if err := c.Delete(ctx, key); err != nil {
+			results[key] = err
+		} else {
+			results[key] = nil
+		}
+	}
+	return results
+}
+
 // AllKeys returns the full set of cached keys.
 func (c *Cache) AllKeys() []string {
 	c.accessMu.RLock()

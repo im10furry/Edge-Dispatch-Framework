@@ -79,6 +79,9 @@ func main() {
 	// Create API handler (returns http.Handler)
 	handler := controlplane.NewAPI(registry, heartbeat, scheduler, cfg)
 
+	// Create and start task executor for async cache operations (v0.7+)
+	taskExecutor := controlplane.NewTaskExecutor(pgStore, scheduler)
+
 	// Initialize Admin API (v0.5)
 	var adminHandler http.Handler
 	if cfg.Admin.Enabled {
@@ -98,6 +101,7 @@ func main() {
 
 	heartbeat.Start(ctxBg)
 	prober.Start(ctxBg)
+	go taskExecutor.Start(ctxBg)
 
 	spaHandler := adminui.SPAHandler()
 

@@ -125,6 +125,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/obj/", s.handleObject)
 	mux.HandleFunc("/internal/p2p/obj/", s.handleP2PFetch)
 	mux.HandleFunc("/internal/push/prewarm", s.handlePrewarm)
+	mux.HandleFunc("/internal/push/purge", s.handlePurge)
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	return withRecovery(withCommonHeaders(withGzipCompression(mux)))
@@ -745,6 +746,48 @@ func (s *Server) handlePrewarm(w http.ResponseWriter, r *http.Request) {
 		"results": results,
 	}); err != nil {
 		slog.Warn("encode prewarm response", "err", err)
+	}
+}
+
+func (s *Server) handlePurge(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Keys []string `json:"keys"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Keys) == 0 {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	type purgeResult struct {
+		Key    string `json:"key"`
+		Status string `json:"status"`
+		Error  string `json:"error,omitempty"`
+	}
+
+	results := make([]purgeResult, 0, len(req.Keys))
+	purged := s.cache.DeleteKeys(r.Context(), req.Keys)
+	for key, err := range purged {
+		r := purgeResult{Key: key}
+		if err != nil {
+			r.Status = "failed"
+			r.Error = err.Error()
+		} else {
+			r.Status = "purged"
+		}
+		results = append(results, r)
+	}
+
+	slog.Info("purge completed", "keys", len(req.Keys), "purged", len(results))
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]any{
+		"total":   len(req.Keys),
+		"results": results,
+	}); err != nil {
+		slog.Warn("encode purge response", "err", err)
 	}
 }
 
