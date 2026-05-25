@@ -21,7 +21,7 @@ type GlobalConfig struct {
 }
 
 type SmallBandwidthConfig struct {
-	Enabled  bool  `json:"enabled"`
+	Enabled   bool  `json:"enabled"`
 	Threshold int64 `json:"threshold_mbps"`
 }
 
@@ -39,9 +39,9 @@ type PrefetchConfig struct {
 }
 
 type NightModeConfig struct {
-	Start             string `json:"start"`
-	End               string `json:"end"`
-	BandwidthLimitMbps int64 `json:"bandwidth_limit_mbps"`
+	Start              string `json:"start"`
+	End                string `json:"end"`
+	BandwidthLimitMbps int64  `json:"bandwidth_limit_mbps"`
 }
 
 type DayModeConfig struct {
@@ -62,12 +62,12 @@ type P2PTopology struct {
 }
 
 type P2PTopologyNode struct {
-	NodeID          string  `json:"node_id"`
-	Name            string  `json:"name"`
-	BandwidthMbps   int64   `json:"bandwidth_mbps"`
-	IsSmallBandwidth bool   `json:"is_small_bandwidth"`
-	CacheHitRatio   float64 `json:"cache_hit_ratio"`
-	Status          string  `json:"status"`
+	NodeID           string  `json:"node_id"`
+	Name             string  `json:"name"`
+	BandwidthMbps    int64   `json:"bandwidth_mbps"`
+	IsSmallBandwidth bool    `json:"is_small_bandwidth"`
+	CacheHitRatio    float64 `json:"cache_hit_ratio"`
+	Status           string  `json:"status"`
 }
 
 type P2PTopologyLink struct {
@@ -78,10 +78,10 @@ type P2PTopologyLink struct {
 }
 
 type AdminNodeConfig struct {
-	SBThreshold         int64 `json:"sb_threshold_mbps"`
-	P2PLimitMbps        int64 `json:"p2p_limit_mbps"`
-	OriginFetchPct      int   `json:"origin_fetch_pct"`
-	PrefetchEnabled     bool  `json:"prefetch_enabled"`
+	SBThreshold     int64 `json:"sb_threshold_mbps"`
+	P2PLimitMbps    int64 `json:"p2p_limit_mbps"`
+	OriginFetchPct  int   `json:"origin_fetch_pct"`
+	PrefetchEnabled bool  `json:"prefetch_enabled"`
 }
 
 func (s *Scheduler) handleAdminGetConfig(w http.ResponseWriter, r *http.Request) {
@@ -175,11 +175,11 @@ func (s *Scheduler) handleAdminP2PTopology(w http.ResponseWriter, r *http.Reques
 
 	for _, n := range nodes {
 		topo.Nodes = append(topo.Nodes, P2PTopologyNode{
-			NodeID:            n.NodeID,
-			Name:              n.Name,
-			BandwidthMbps:     n.Capabilities.MaxUplinkMbps,
-			IsSmallBandwidth:  n.Capabilities.MaxUplinkMbps > 0 && n.Capabilities.MaxUplinkMbps < threshold,
-			Status:            string(n.Status),
+			NodeID:           n.NodeID,
+			Name:             n.Name,
+			BandwidthMbps:    n.Capabilities.MaxUplinkMbps,
+			IsSmallBandwidth: n.Capabilities.MaxUplinkMbps > 0 && n.Capabilities.MaxUplinkMbps < threshold,
+			Status:           string(n.Status),
 		})
 	}
 
@@ -246,9 +246,9 @@ func (s *Scheduler) handleAdminPrewarm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type nodeResult struct {
-		NodeID  string `json:"node_id"`
-		Status  string `json:"status"`
-		Error   string `json:"error,omitempty"`
+		NodeID string `json:"node_id"`
+		Status string `json:"status"`
+		Error  string `json:"error,omitempty"`
 	}
 
 	var mu sync.Mutex
@@ -307,9 +307,9 @@ func (s *Scheduler) handleAdminPrewarm(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]any{
-		"keys_total":    len(req.Keys),
-		"nodes_pushed":  len(results),
-		"node_results":  results,
+		"keys_total":   len(req.Keys),
+		"nodes_pushed": len(results),
+		"node_results": results,
 	}); err != nil {
 		slog.Warn("encode prewarm response", "err", err)
 	}

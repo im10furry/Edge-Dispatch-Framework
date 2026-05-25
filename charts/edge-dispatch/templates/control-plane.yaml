@@ -27,9 +27,6 @@ spec:
             - name: api
               containerPort: 8080
               protocol: TCP
-            - name: admin
-              containerPort: 8082
-              protocol: TCP
           env:
             - name: CP_LISTEN_ADDR
               value: {{ .Values.controlPlane.env.listenAddr | quote }}
@@ -118,10 +115,6 @@ spec:
     - name: api
       port: {{ .Values.controlPlane.service.port }}
       targetPort: api
-      protocol: TCP
-    - name: admin
-      port: {{ .Values.controlPlane.service.adminPort }}
-      targetPort: admin
       protocol: TCP
   selector:
     {{- include "edge-dispatch.selectorLabels" . | nindent 4 }}

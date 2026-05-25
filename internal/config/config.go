@@ -73,44 +73,44 @@ type ControlPlaneConfig struct {
 
 // EdgeAgentConfig holds edge agent specific configuration.
 type EdgeAgentConfig struct {
-	ListenAddr       string
-	ControlPlaneURL  string
-	NodeToken        string
-	CacheDir         string
-	CacheMaxGB       int64
-	OriginURL        string
+	ListenAddr        string
+	ControlPlaneURL   string
+	NodeToken         string
+	CacheDir          string
+	CacheMaxGB        int64
+	OriginURL         string
 	HeartbeatInterval time.Duration
-	MaxConns         int
-	TLSCertFile      string
-	TLSKeyFile       string
+	MaxConns          int
+	TLSCertFile       string
+	TLSKeyFile        string
 	// NAT/Tunnel support (v0.3)
 	NATMode          bool   // true if this node is behind NAT
 	TunnelServerAddr string // Tunnel server address (e.g., "gateway:7700")
 	TunnelAuthToken  string // Token for tunnel authentication
 	// Streaming support (v0.4)
-	Streaming        *StreamingConfig
+	Streaming *StreamingConfig
 	// HTTP/3 QUIC support (v0.6)
-	Quic             QuicConfig
+	Quic QuicConfig
 	// Small bandwidth optimization (v0.6+)
-	MaxUplinkMbps            int64
-	P2PEnabled               bool
-	P2PDiscoveryIntervalSec  int
-	P2PMaxPeers              int
-	PrefetchEnabled          bool
-	PrefetchWorkers          int
-	PrefetchBandwidthLimit   int
-	PrefetchNightModeStart   int
-	PrefetchNightModeEnd     int
-	OriginFetchBWLimit       int
-	PublicHost               string
-	Region                   string
-	ISP                      string
-	WSProxyEnabled           bool
-	GRPCProxyEnabled         bool
-	TLSAutoCert              bool
-	TLSCertDir               string
-	TLSEnabled               bool
-	ShieldMode               bool
+	MaxUplinkMbps           int64
+	P2PEnabled              bool
+	P2PDiscoveryIntervalSec int
+	P2PMaxPeers             int
+	PrefetchEnabled         bool
+	PrefetchWorkers         int
+	PrefetchBandwidthLimit  int
+	PrefetchNightModeStart  int
+	PrefetchNightModeEnd    int
+	OriginFetchBWLimit      int
+	PublicHost              string
+	Region                  string
+	ISP                     string
+	WSProxyEnabled          bool
+	GRPCProxyEnabled        bool
+	TLSAutoCert             bool
+	TLSCertDir              string
+	TLSEnabled              bool
+	ShieldMode              bool
 }
 
 // OriginConfig holds origin server configuration.
@@ -134,10 +134,10 @@ type DNSAdapterConfig struct {
 
 // ContentIndexConfig holds content index configuration (v0.2+).
 type ContentIndexConfig struct {
-	BloomCapacity       int
-	BloomFPRate         float64
-	HotKeyTTL           time.Duration
-	ContentAwareWeight  float64
+	BloomCapacity         int
+	BloomFPRate           float64
+	HotKeyTTL             time.Duration
+	ContentAwareWeight    float64
 	HotContentAwareWeight float64
 }
 
@@ -189,8 +189,8 @@ func LoadControlPlane() *ControlPlaneConfig {
 			BloomCapacity:         intEnv("CP_CI_BLOOM_CAPACITY", 10000),
 			BloomFPRate:           floatEnv("CP_CI_BLOOM_FP_RATE", 0.01),
 			HotKeyTTL:             durationEnv("CP_CI_HOT_KEY_TTL", 5*time.Minute),
-			ContentAwareWeight:     floatEnv("CP_CI_CONTENT_AWARE_WEIGHT", 10.0),
-			HotContentAwareWeight:  floatEnv("CP_CI_HOT_CONTENT_WEIGHT", 25.0),
+			ContentAwareWeight:    floatEnv("CP_CI_CONTENT_AWARE_WEIGHT", 10.0),
+			HotContentAwareWeight: floatEnv("CP_CI_HOT_CONTENT_WEIGHT", 25.0),
 		},
 		Streaming: DefaultStreamingConfig(),
 		SmallBandwidthOptimization: SmallBandwidthConfig{
@@ -202,21 +202,21 @@ func LoadControlPlane() *ControlPlaneConfig {
 			PrefetchBandwidthLimit:  intEnv("CP_SB_PREFETCH_BW_LIMIT", 20),
 		},
 		Admin: AdminAPIConfig{
-			Enabled:           boolEnv("CP_ADMIN_ENABLED", false),
-			AdminSecretKey:    getEnv("CP_ADMIN_SECRET_KEY", ""),
-			AdminAccessKey:    getEnv("CP_ADMIN_ACCESS_KEY", ""),
-			JWTSecret:         getEnv("CP_ADMIN_JWT_SECRET", ""),
-			JWTExpirySeconds:  intEnv("CP_ADMIN_JWT_EXPIRY", 3600),
-			SessionStoreType:  getEnv("CP_ADMIN_SESSION_STORE", "memory"),
+			Enabled:            boolEnv("CP_ADMIN_ENABLED", false),
+			AdminSecretKey:     getEnv("CP_ADMIN_SECRET_KEY", ""),
+			AdminAccessKey:     getEnv("CP_ADMIN_ACCESS_KEY", ""),
+			JWTSecret:          getEnv("CP_ADMIN_JWT_SECRET", ""),
+			JWTExpirySeconds:   intEnv("CP_ADMIN_JWT_EXPIRY", 3600),
+			SessionStoreType:   getEnv("CP_ADMIN_SESSION_STORE", "memory"),
 			EnableMultiTenancy: boolEnv("CP_ENABLE_MULTITENANCY", false),
-			EnableOIDC:        boolEnv("CP_ADMIN_OIDC_ENABLED", false),
-			OIDCProviderURL:   getEnv("CP_ADMIN_OIDC_PROVIDER_URL", ""),
-			OIDCClientID:      getEnv("CP_ADMIN_OIDC_CLIENT_ID", ""),
-			OIDCClientSecret:  getEnv("CP_ADMIN_OIDC_CLIENT_SECRET", ""),
-			EnableLocalAuth:   boolEnv("CP_ADMIN_LOCAL_AUTH", true),
-			GrafanaURL:        getEnv("CP_ADMIN_GRAFANA_URL", ""),
-			PrometheusURL:     getEnv("CP_ADMIN_PROMETHEUS_URL", ""),
-			LokiURL:           getEnv("CP_ADMIN_LOKI_URL", ""),
+			EnableOIDC:         boolEnv("CP_ADMIN_OIDC_ENABLED", false),
+			OIDCProviderURL:    getEnv("CP_ADMIN_OIDC_PROVIDER_URL", ""),
+			OIDCClientID:       getEnv("CP_ADMIN_OIDC_CLIENT_ID", ""),
+			OIDCClientSecret:   getEnv("CP_ADMIN_OIDC_CLIENT_SECRET", ""),
+			EnableLocalAuth:    boolEnv("CP_ADMIN_LOCAL_AUTH", true),
+			GrafanaURL:         getEnv("CP_ADMIN_GRAFANA_URL", ""),
+			PrometheusURL:      getEnv("CP_ADMIN_PROMETHEUS_URL", ""),
+			LokiURL:            getEnv("CP_ADMIN_LOKI_URL", ""),
 		},
 	}
 	cfg.warnDefaults()
@@ -248,24 +248,24 @@ func LoadEdgeAgent() *EdgeAgentConfig {
 			ListenAddr: getEnv("EA_QUIC_LISTEN_ADDR", ":9443"),
 		},
 		// Small bandwidth optimization (v0.6+)
-		MaxUplinkMbps:            int64(intEnv("EA_MAX_UPLINK_MBPS", 0)),
-		P2PEnabled:               boolEnv("EA_P2P_ENABLED", false),
-		P2PDiscoveryIntervalSec:  intEnv("EA_P2P_DISCOVERY_INTERVAL", 60),
-		P2PMaxPeers:              intEnv("EA_P2P_MAX_PEERS", 10),
-		PrefetchEnabled:          boolEnv("EA_PREFETCH_ENABLED", false),
-		PrefetchWorkers:          intEnv("EA_PREFETCH_WORKERS", 2),
-		PrefetchBandwidthLimit:   intEnv("EA_PREFETCH_BANDWIDTH_LIMIT", 20),
-		PrefetchNightModeStart:   intEnv("EA_PREFETCH_NIGHT_MODE_START", 1),
-		PrefetchNightModeEnd:     intEnv("EA_PREFETCH_NIGHT_MODE_END", 7),
-		OriginFetchBWLimit:       intEnv("EA_ORIGIN_FETCH_BW_LIMIT", 0),
-		PublicHost:               getEnv("EA_PUBLIC_HOST", ""),
-		Region:                   getEnv("EA_REGION", ""),
-		ISP:                      getEnv("EA_ISP", ""),
-		WSProxyEnabled:           boolEnv("EA_WS_PROXY_ENABLED", true),
-		GRPCProxyEnabled:         boolEnv("EA_GRPC_PROXY_ENABLED", true),
-		TLSEnabled:               boolEnv("EA_TLS_ENABLED", false),
-		TLSAutoCert:              boolEnv("EA_TLS_AUTO_CERT", false),
-		TLSCertDir:               getEnv("EA_TLS_CERT_DIR", "/data/edf/tls"),
+		MaxUplinkMbps:           int64(intEnv("EA_MAX_UPLINK_MBPS", 0)),
+		P2PEnabled:              boolEnv("EA_P2P_ENABLED", false),
+		P2PDiscoveryIntervalSec: intEnv("EA_P2P_DISCOVERY_INTERVAL", 60),
+		P2PMaxPeers:             intEnv("EA_P2P_MAX_PEERS", 10),
+		PrefetchEnabled:         boolEnv("EA_PREFETCH_ENABLED", false),
+		PrefetchWorkers:         intEnv("EA_PREFETCH_WORKERS", 2),
+		PrefetchBandwidthLimit:  intEnv("EA_PREFETCH_BANDWIDTH_LIMIT", 20),
+		PrefetchNightModeStart:  intEnv("EA_PREFETCH_NIGHT_MODE_START", 1),
+		PrefetchNightModeEnd:    intEnv("EA_PREFETCH_NIGHT_MODE_END", 7),
+		OriginFetchBWLimit:      intEnv("EA_ORIGIN_FETCH_BW_LIMIT", 0),
+		PublicHost:              getEnv("EA_PUBLIC_HOST", ""),
+		Region:                  getEnv("EA_REGION", ""),
+		ISP:                     getEnv("EA_ISP", ""),
+		WSProxyEnabled:          boolEnv("EA_WS_PROXY_ENABLED", true),
+		GRPCProxyEnabled:        boolEnv("EA_GRPC_PROXY_ENABLED", true),
+		TLSEnabled:              boolEnv("EA_TLS_ENABLED", false),
+		TLSAutoCert:             boolEnv("EA_TLS_AUTO_CERT", false),
+		TLSCertDir:              getEnv("EA_TLS_CERT_DIR", "/data/edf/tls"),
 	}
 	cfg.warnDefaults()
 	return cfg
@@ -303,21 +303,21 @@ func LoadOrigin() *OriginConfig {
 
 // AdminAPIConfig holds admin API configuration (v0.5).
 type AdminAPIConfig struct {
-	Enabled           bool
-	AdminSecretKey    string
-	AdminAccessKey    string
-	JWTSecret         string
-	JWTExpirySeconds  int
-	SessionStoreType  string // "memory" or "redis"
+	Enabled            bool
+	AdminSecretKey     string
+	AdminAccessKey     string
+	JWTSecret          string
+	JWTExpirySeconds   int
+	SessionStoreType   string // "memory" or "redis"
 	EnableMultiTenancy bool
-	EnableOIDC        bool
-	OIDCProviderURL   string
-	OIDCClientID      string
-	OIDCClientSecret  string
-	EnableLocalAuth   bool
-	GrafanaURL        string
-	PrometheusURL     string
-	LokiURL           string
+	EnableOIDC         bool
+	OIDCProviderURL    string
+	OIDCClientID       string
+	OIDCClientSecret   string
+	EnableLocalAuth    bool
+	GrafanaURL         string
+	PrometheusURL      string
+	LokiURL            string
 }
 
 func getEnv(key, defaultVal string) string {
@@ -435,10 +435,10 @@ func (c *DNSAdapterConfig) warnDefaults() {
 // LoadContentIndex loads configuration for the content index (v0.2+).
 func LoadContentIndex() *ContentIndexConfig {
 	return &ContentIndexConfig{
-		BloomCapacity:       intEnv("CI_BLOOM_CAPACITY", 10000),
-		BloomFPRate:         floatEnv("CI_BLOOM_FP_RATE", 0.01),
-		HotKeyTTL:           durationEnv("CI_HOT_KEY_TTL", 5*time.Minute),
-		ContentAwareWeight:  floatEnv("CI_CONTENT_AWARE_WEIGHT", 10.0),
+		BloomCapacity:         intEnv("CI_BLOOM_CAPACITY", 10000),
+		BloomFPRate:           floatEnv("CI_BLOOM_FP_RATE", 0.01),
+		HotKeyTTL:             durationEnv("CI_HOT_KEY_TTL", 5*time.Minute),
+		ContentAwareWeight:    floatEnv("CI_CONTENT_AWARE_WEIGHT", 10.0),
 		HotContentAwareWeight: floatEnv("CI_HOT_CONTENT_WEIGHT", 25.0),
 	}
 }

@@ -11,10 +11,10 @@ func newTestProxyHandler(ws, grpc bool) *ProxyHandler {
 
 func TestIsWebSocket(t *testing.T) {
 	tests := []struct {
-		name       string
-		wsEnabled  bool
-		headers    map[string]string
-		wantWS     bool
+		name      string
+		wsEnabled bool
+		headers   map[string]string
+		wantWS    bool
 	}{
 		{
 			name:      "standard websocket upgrade",
@@ -98,8 +98,8 @@ func TestIsWebSocket(t *testing.T) {
 		{
 			name:      "no headers at all",
 			wsEnabled: true,
-			headers:    map[string]string{},
-			wantWS:     false,
+			headers:   map[string]string{},
+			wantWS:    false,
 		},
 	}
 
@@ -212,9 +212,9 @@ func TestCopyHeaders(t *testing.T) {
 		{
 			name: "copies allowed headers",
 			src: map[string][]string{
-				"Content-Type":   {"application/json"},
-				"X-Custom":       {"value1"},
-				"Authorization":  {"Bearer token"},
+				"Content-Type":  {"application/json"},
+				"X-Custom":      {"value1"},
+				"Authorization": {"Bearer token"},
 			},
 			wantKeys: []string{"Content-Type", "X-Custom", "Authorization"},
 		},
@@ -288,11 +288,11 @@ func TestCopyHeaders(t *testing.T) {
 		{
 			name: "all hop-by-hop removed",
 			src: map[string][]string{
-				"Connection":       {"keep-alive"},
-				"Keep-Alive":       {"timeout=120"},
-				"Proxy-Connection": {"close"},
+				"Connection":        {"keep-alive"},
+				"Keep-Alive":        {"timeout=120"},
+				"Proxy-Connection":  {"close"},
 				"Transfer-Encoding": {"chunked"},
-				"Upgrade":          {"websocket"},
+				"Upgrade":           {"websocket"},
 			},
 			wantKeys: []string{},
 			skipKeys: []string{"Connection", "Keep-Alive", "Proxy-Connection", "Transfer-Encoding", "Upgrade"},

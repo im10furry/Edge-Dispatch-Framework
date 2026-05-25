@@ -83,22 +83,22 @@ func (s *LocalConfigServer) handleApp(w http.ResponseWriter, r *http.Request) {
 func (s *LocalConfigServer) handleAPIConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		writeJSON(w, map[string]interface{}{
-			"control_plane_url":   s.cfg.ControlPlaneURL,
-			"origin_url":          s.cfg.OriginURL,
-			"cache_dir":           s.cfg.CacheDir,
-			"cache_max_gb":        s.cfg.CacheMaxGB,
-			"listen_addr":         s.cfg.ListenAddr,
-			"max_uplink_mbps":     s.cfg.MaxUplinkMbps,
-			"p2p_enabled":         s.cfg.P2PEnabled,
-			"p2p_max_peers":       s.cfg.P2PMaxPeers,
-			"nat_mode":            s.cfg.NATMode,
-			"tunnel_server_addr":  s.cfg.TunnelServerAddr,
+			"control_plane_url":     s.cfg.ControlPlaneURL,
+			"origin_url":            s.cfg.OriginURL,
+			"cache_dir":             s.cfg.CacheDir,
+			"cache_max_gb":          s.cfg.CacheMaxGB,
+			"listen_addr":           s.cfg.ListenAddr,
+			"max_uplink_mbps":       s.cfg.MaxUplinkMbps,
+			"p2p_enabled":           s.cfg.P2PEnabled,
+			"p2p_max_peers":         s.cfg.P2PMaxPeers,
+			"nat_mode":              s.cfg.NATMode,
+			"tunnel_server_addr":    s.cfg.TunnelServerAddr,
 			"origin_fetch_bw_limit": s.cfg.OriginFetchBWLimit,
-			"prefetch_enabled":    s.cfg.PrefetchEnabled,
-			"prefetch_workers":    s.cfg.PrefetchWorkers,
-			"prefetch_bw_limit":   s.cfg.PrefetchBandwidthLimit,
-			"prefetch_night_start": s.cfg.PrefetchNightModeStart,
-			"prefetch_night_end":  s.cfg.PrefetchNightModeEnd,
+			"prefetch_enabled":      s.cfg.PrefetchEnabled,
+			"prefetch_workers":      s.cfg.PrefetchWorkers,
+			"prefetch_bw_limit":     s.cfg.PrefetchBandwidthLimit,
+			"prefetch_night_start":  s.cfg.PrefetchNightModeStart,
+			"prefetch_night_end":    s.cfg.PrefetchNightModeEnd,
 		})
 		return
 	}
@@ -163,7 +163,9 @@ func (s *LocalConfigServer) handleAPITestConn(w http.ResponseWriter, r *http.Req
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	var req struct{ URL string `json:"url"` }
+	var req struct {
+		URL string `json:"url"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
@@ -196,20 +198,20 @@ func (s *LocalConfigServer) handleAPIStatus(w http.ResponseWriter, r *http.Reque
 	}
 
 	writeJSON(w, map[string]interface{}{
-		"uptime":       time.Since(startTime).Round(time.Second).String(),
+		"uptime":          time.Since(startTime).Round(time.Second).String(),
 		"cache_hit_ratio": ratio,
-		"cache_mb":     float64(cacheSize) / (1024 * 1024),
-		"cache_max_gb": cacheMax,
-		"cache_items":  cacheItems,
-		"cache_hits":   hits,
-		"cache_misses": misses,
-		"total_requests": s.metrics.RequestCount(),
-		"total_bytes":  s.metrics.BytesSent(),
-		"errors":       s.metrics.ErrorCount(),
-		"egress_mbps":  egress,
-		"ingress_mbps": ingress,
-		"goroutines":   runtime.NumGoroutine(),
-		"num_cpu":      runtime.NumCPU(),
+		"cache_mb":        float64(cacheSize) / (1024 * 1024),
+		"cache_max_gb":    cacheMax,
+		"cache_items":     cacheItems,
+		"cache_hits":      hits,
+		"cache_misses":    misses,
+		"total_requests":  s.metrics.RequestCount(),
+		"total_bytes":     s.metrics.BytesSent(),
+		"errors":          s.metrics.ErrorCount(),
+		"egress_mbps":     egress,
+		"ingress_mbps":    ingress,
+		"goroutines":      runtime.NumGoroutine(),
+		"num_cpu":         runtime.NumCPU(),
 		"max_uplink_mbps": s.cfg.MaxUplinkMbps,
 	})
 }

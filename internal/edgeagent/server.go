@@ -588,11 +588,11 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Query().Get("format") == "json" {
 		data := map[string]any{
-			"requests":       s.metrics.requests.Load(),
-			"cache_hits":     s.metrics.cacheHits.Load(),
-			"cache_misses":   s.metrics.cacheMisses.Load(),
-			"bytes_sent":     s.metrics.bytesSent.Load(),
-			"errors":         s.metrics.errors.Load(),
+			"requests":     s.metrics.requests.Load(),
+			"cache_hits":   s.metrics.cacheHits.Load(),
+			"cache_misses": s.metrics.cacheMisses.Load(),
+			"bytes_sent":   s.metrics.bytesSent.Load(),
+			"errors":       s.metrics.errors.Load(),
 			"bandwidth": map[string]float64{
 				"ingress_mbps": ingress,
 				"egress_mbps":  egress,
@@ -649,11 +649,11 @@ func (m *promMetrics) addDeltas(requests, cacheHits, cacheMisses, bytesSent, err
 	m.lastErrors = errors
 }
 
-func (s *Server) RequestCount() int64 { return s.metrics.requests.Load() }
-func (s *Server) CacheHits() int64    { return s.metrics.cacheHits.Load() }
-func (s *Server) CacheMisses() int64  { return s.metrics.cacheMisses.Load() }
-func (s *Server) BytesSent() int64    { return s.metrics.bytesSent.Load() }
-func (s *Server) ErrorCount() int64   { return s.metrics.errors.Load() }
+func (s *Server) RequestCount() int64      { return s.metrics.requests.Load() }
+func (s *Server) CacheHits() int64         { return s.metrics.cacheHits.Load() }
+func (s *Server) CacheMisses() int64       { return s.metrics.cacheMisses.Load() }
+func (s *Server) BytesSent() int64         { return s.metrics.bytesSent.Load() }
+func (s *Server) ErrorCount() int64        { return s.metrics.errors.Load() }
 func (s *Server) BWMeter() *BandwidthMeter { return s.bwMeter }
 
 func (s *Server) GetCacheStats() (size int64, maxGB int64, itemCount int64) {

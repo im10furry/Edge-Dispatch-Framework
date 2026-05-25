@@ -8,9 +8,9 @@ import (
 
 // TunnelManager manages tunnel connections between gateway and NAT nodes.
 type TunnelManager struct {
-	mu       sync.RWMutex
-	tunnels  map[string]*TunnelSession // nodeID -> session
-	logger   *slog.Logger
+	mu      sync.RWMutex
+	tunnels map[string]*TunnelSession // nodeID -> session
+	logger  *slog.Logger
 }
 
 // TunnelSession represents an active tunnel connection with a NAT node.

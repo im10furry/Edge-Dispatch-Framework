@@ -9,7 +9,7 @@ import (
 
 type mockContentIndex struct {
 	data map[string]struct {
-		isHot       bool
+		isHot        bool
 		likelyCached bool
 	}
 }
@@ -57,13 +57,13 @@ func (m *mockContentIndex) FindNodesWithKey(key string) (hotNodes, bloomNodes ma
 func TestContentAwareScoring(t *testing.T) {
 	cfg := &config.ControlPlaneConfig{
 		ContentIndex: config.ContentIndexConfig{
-			ContentAwareWeight:     10.0,
-			HotContentAwareWeight:  25.0,
+			ContentAwareWeight:    10.0,
+			HotContentAwareWeight: 25.0,
 		},
 	}
 	s := &Scheduler{cfg: cfg, contentIndex: &mockContentIndex{
 		data: map[string]struct {
-			isHot       bool
+			isHot        bool
 			likelyCached bool
 		}{
 			"node1:hotfile.txt": {isHot: true, likelyCached: true},

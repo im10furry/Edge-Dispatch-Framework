@@ -23,7 +23,7 @@ type ServerConfig struct {
 
 // ClientConfig holds QUIC client configuration (no-op when quic tag absent).
 type ClientConfig struct {
-	TLSConfig      *tls.Config
+	TLSConfig        *tls.Config
 	HandshakeTimeout time.Duration
 	MaxIdleTimeout   time.Duration
 	KeepAlivePeriod  time.Duration

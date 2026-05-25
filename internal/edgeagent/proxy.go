@@ -12,9 +12,9 @@ import (
 )
 
 type ProxyHandler struct {
-	originURL string
-	nodeToken string
-	wsEnabled bool
+	originURL   string
+	nodeToken   string
+	wsEnabled   bool
 	grpcEnabled bool
 }
 

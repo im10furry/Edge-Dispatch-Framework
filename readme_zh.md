@@ -17,8 +17,15 @@
 | **NAT 节点穿透** | 反向隧道，让内网节点也能提供服务 | ✅ |
 | **内容感知调度** | Bloom Filter + 热内容精确索引，命中率优先 | ✅ |
 | **直播分片分发** | HLS/DASH 滑动窗口缓存 + 预取 | ✅ |
-| **Web 管理控制台** | 可视化管理面板，监控节点、调度、数据 | [Webmanager](https://github.com/im10furry/Edge-Dispatch-Framework-Webmanager) |
-| **HTTP/3 / QUIC** | 基于 UDP 的下一代传输 | ✅ |
+| **Web 管理控制台** | 内嵌 React 管理控制台（节点、租户、用户、策略、入口、任务、审计、设置） | ✅ v0.7 |
+| **HTTP/3 / QUIC** | 基于 UDP 的下一代传输 | ✅ v0.6 |
+| **小带宽优化** | 带宽感知调度、P2P 对等拉取、智能预取、限速、本地配置 UI | ✅ v0.6 |
+| **内容预热** | 通过管理控制台主动推送内容到所有边缘节点 | ✅ v0.6 |
+| **源站盾模式** | 分层缓存架构，调度时优先使用盾节点 | ✅ v0.6 |
+| **IPv6 双栈** | IPv4/IPv6 双栈监听，自动回退 | ✅ v0.6 |
+| **一键安装** | 交互式安装脚本，支持 CP/EA/Origin 部署 | ✅ v0.6 |
+| **Helm Chart** | Kubernetes 原生 Helm 部署 | ✅ v0.6 |
+| **QUIC 客户端** | HTTP/3 客户端传输，用于服务间通信 | ✅ v0.6 |
 
 ## 架构概览
 
@@ -64,13 +71,16 @@
 ```
 ### Web 管理控制台
 
-[Edge-Dispatch-Framework-Webmanager](https://github.com/im10furry/Edge-Dispatch-Framework-Webmanager) 是配套的 Web UI 管理面板，通过控制面 Admin API 提供可视化的节点管理、调度监控和数据展示。
+管理控制台基于 React + Ant Design 构建，直接嵌入到控制面二进制文件中。通过控制面端口（默认 `8080`）的 `/admin/` 路径访问。
 
 ```bash
-# 克隆并启动 Webmanager
-git clone https://github.com/im10furry/Edge-Dispatch-Framework-Webmanager.git
-cd Edge-Dispatch-Framework-Webmanager
-# 详见项目 README
+# 构建并启动（含 UI）
+cd ui && npm install && npm run build
+make build
+./bin/control-plane
+
+# 开发模式（热更新，API 代理到 CP）
+cd ui && npm run dev
 ```
 
 ---
@@ -397,6 +407,10 @@ docker push your-registry/edf-edge-agent:latest
 
 ```
 .
+├── ui/                           # 管理控制台前端 (React + Ant Design)
+│   ├── src/                      # TypeScript 源码
+│   ├── package.json
+│   └── vite.config.ts
 ├── cmd/                          # 服务入口
 │   ├── control-plane/            # 控制面
 │   ├── edge-agent/               # 边缘节点
@@ -419,10 +433,13 @@ docker push your-registry/edf-edge-agent:latest
 │   ├── streaming/                # HLS/DASH 流媒体支持（v0.4）
 │   └── tunnel/                   # 反向隧道协议（v0.3）
 ├── docker/                       # Dockerfile
+├── charts/                       # Helm Chart (Kubernetes)
+│   └── edge-dispatch/            # 全栈 K8s 部署
 ├── docker-compose.yml            # 本地演示（All-in-One）
 ├── docker-compose.cp.yml         # 控制面部署（生产用）
 ├── docker-compose.edge.yml       # 边缘节点部署（生产用）
 ├── Makefile                      # 构建/测试/部署命令
+├── openapi.json                  # OpenAPI 3.0 规范
 └── requirements.md               # 产品需求文档（PRD）
 ```
 
@@ -445,6 +462,11 @@ docker push your-registry/edf-edge-agent:latest
 | `CP_PROBE_TIMEOUT` | `5s` | 探测超时 |
 | `CP_HEARTBEAT_TTL` | `30s` | 心跳超时（超过则标记下线） |
 | `CP_CI_HOT_KEY_TTL` | `5m` | 热键 TTL |
+| `CP_ADMIN_ENABLED` | `false` | 启用管理 API |
+| `CP_ADMIN_ACCESS_KEY` | — | 管理 API 访问密钥 |
+| `CP_ADMIN_SECRET_KEY` | — | 管理 API 秘密密钥 |
+| `CP_ADMIN_JWT_SECRET` | — | JWT 签名密钥（**启用管理 API 时必须设置**） |
+| `CP_ADMIN_JWT_EXPIRY` | `3600` | JWT 过期时间（秒） |
 
 ### 边缘节点（Edge Agent）
 
@@ -459,6 +481,8 @@ docker push your-registry/edf-edge-agent:latest
 | `EA_HEARTBEAT_INTERVAL` | `10s` | 心跳上报间隔 |
 | `EA_NAT_MODE` | `false` | NAT 模式（通过隧道连接） |
 | `EA_TUNNEL_SERVER_ADDR` | — | 隧道服务器地址 |
+| `EA_QUIC_ENABLED` | `false` | 启用 HTTP/3 QUIC（v0.6） |
+| `EA_QUIC_LISTEN_ADDR` | `:9443` | HTTP/3 QUIC 监听地址 |
 
 ### 网关（Gateway）
 
@@ -468,6 +492,9 @@ docker push your-registry/edf-edge-agent:latest
 | `GW_TUNNEL_ADDR` | `:7700` | 隧道服务监听地址 |
 | `GW_CONTROL_PLANE_URL` | — | 控制面地址 |
 | `GW_AUTH_TOKEN` | — | 隧道认证 Token（**生产必须设置**） |
+| `GW_CP_TOKEN` | — | 控制面 API 认证 Token（**生产必须设置**） |
+| `GW_QUIC_ENABLED` | `false` | 启用 HTTP/3 QUIC（v0.6） |
+| `GW_QUIC_LISTEN_ADDR` | `:9443` | HTTP/3 QUIC 监听地址 |
 
 ### DNS 适配器
 
@@ -476,6 +503,8 @@ docker push your-registry/edf-edge-agent:latest
 | `DNS_LISTEN_ADDR` | `:5353` | UDP DNS 监听地址 |
 | `DNS_DOMAIN` | `edge.local` | 调度域名后缀 |
 | `DNS_TTL_SECONDS` | `30` | DNS 响应 TTL |
+| `DNS_TOKEN_SECRET` | — | HMAC Token 密钥（**生产必须设置，v0.5+**） |
+| `DNS_CONTENT_AWARE_SCORE` | `25.0` | 内容感知路由评分权重 |
 
 ## API 接口
 
@@ -495,6 +524,28 @@ POST /v1/dispatch/resolve        # 纯 API 调度（返回 Top-K 候选）
 GET  /obj/{key}                  # 302 入口（重定向到最优边缘节点）
 ```
 
+### 管理 API (v0.5+)
+
+需要 JWT Bearer Token 认证。通过 `CP_ADMIN_ENABLED=true` 启用。供 Web 管理控制台和程序化访问使用。
+
+```
+# 认证
+POST /internal/admin/v1/login                   # 登录（邮箱 + 密码）
+POST /internal/admin/v1/refresh                 # 刷新 JWT Token
+POST /internal/admin/v1/logout                  # 登出
+
+# 管理
+GET  /internal/admin/v1/dashboard               # 仪表盘指标
+POST /internal/admin/v1/nodes/{id}:disable      # 禁用节点
+POST /internal/admin/v1/nodes/{id}:enable       # 启用节点
+POST /internal/admin/v1/nodes/{id}:revoke       # 吊销节点
+GET  /internal/admin/v1/audit                   # 审计日志（查询 + CSV/JSON 导出）
+GET  /internal/admin/v1/settings                # 系统设置
+
+# 完整 CRUD：租户、用户、节点、策略、入口、任务、缓存操作
+# 通过 Web 管理控制台（http://localhost:8080/admin/）查看完整 GUI
+```
+
 ### 其他
 
 ```
@@ -505,8 +556,14 @@ GET  /metrics                    # Prometheus 指标（控制面/网关/边缘�
 ## 开发
 
 ```bash
-# 构建所有服务
+# 构建所有服务（含前端）
 make build
+
+# 仅构建前端
+make ui-build
+
+# 启动前端开发服务器（热更新，连接到 localhost:8080 的控制面）
+make ui-dev
 
 # 运行测试
 make test
@@ -557,7 +614,9 @@ make stress-gateway
 - [x] **v0.3** — 网关反代 + 反向隧道（NAT 节点支持）
 - [x] **v0.4** — HLS/DASH 流媒体 + 滑动窗口缓存 + 预取
 - [x] **v0.5** — Prometheus 指标、热键 TTL 清理、Bug 修复（v0.1~v0.3）
-- [ ] **v0.6** — HTTP/3 QUIC、Helm Chart 部署
+- [x] **v0.6** — HTTP/3 QUIC、Helm Chart 部署
+- [x] **v0.7** — 集成 React 管理控制台（Webmanager 合并到主仓库）
+- [ ] **v0.8** — 分布式追踪 + GeoDNS + 多租户限流 + 控制面 HA
 
 ## 贡献
 

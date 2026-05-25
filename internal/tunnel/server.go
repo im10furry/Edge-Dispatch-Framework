@@ -18,12 +18,12 @@ import (
 
 // ServerConfig holds tunnel server configuration.
 type ServerConfig struct {
-	ListenAddr    string        // Address to listen for tunnel connections (e.g., ":7700")
-	AuthToken     string        // Token to validate NAT node registration
-	IdleTimeout   time.Duration // Close idle tunnels after this duration
-	MaxTunnels    int           // Maximum concurrent tunnels
-	TLSCertFile   string        // TLS certificate file
-	TLSKeyFile    string        // TLS key file
+	ListenAddr  string        // Address to listen for tunnel connections (e.g., ":7700")
+	AuthToken   string        // Token to validate NAT node registration
+	IdleTimeout time.Duration // Close idle tunnels after this duration
+	MaxTunnels  int           // Maximum concurrent tunnels
+	TLSCertFile string        // TLS certificate file
+	TLSKeyFile  string        // TLS key file
 }
 
 // DefaultServerConfig returns default server configuration.
@@ -41,7 +41,7 @@ type Server struct {
 	manager  *TunnelManager
 	listener net.Listener
 	logger   *slog.Logger
-	nextID    atomic.Uint64
+	nextID   atomic.Uint64
 	ctx      context.Context
 	cancel   context.CancelFunc
 }
@@ -301,8 +301,8 @@ func (s *Server) ForwardRequest(nodeID string, req *HTTPRequestHeader, body io.R
 		}
 		// Create reader for response body
 		bodyReader := &tunnelBodyReader{
-			stream:  stream,
-			remain:  respHeader.BodyLen,
+			stream: stream,
+			remain: respHeader.BodyLen,
 		}
 		return &respHeader, bodyReader, nil
 
@@ -313,9 +313,9 @@ func (s *Server) ForwardRequest(nodeID string, req *HTTPRequestHeader, body io.R
 
 // tunnelBodyReader reads response body from tunnel stream.
 type tunnelBodyReader struct {
-	stream  *Stream
-	remain  int64
-	buf     []byte
+	stream *Stream
+	remain int64
+	buf    []byte
 }
 
 func (r *tunnelBodyReader) Read(p []byte) (int, error) {

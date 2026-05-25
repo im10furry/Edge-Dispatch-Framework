@@ -44,7 +44,6 @@ controlPlane:
   service:
     type: ClusterIP
     port: 8080
-    adminPort: 8082
   env:
     listenAddr: ":8080"
     tokenSecret: "change-me-in-production"

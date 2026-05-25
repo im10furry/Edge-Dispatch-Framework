@@ -115,7 +115,7 @@ func (s *Server) Addr() string {
 
 // ClientConfig holds QUIC client configuration.
 type ClientConfig struct {
-	TLSConfig      *tls.Config
+	TLSConfig        *tls.Config
 	HandshakeTimeout time.Duration
 	MaxIdleTimeout   time.Duration
 	KeepAlivePeriod  time.Duration

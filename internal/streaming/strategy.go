@@ -12,9 +12,9 @@ import (
 // enabling the control plane to prefer nodes that already have the stream
 // in their sliding window.
 type StreamingStrategy struct {
-	mu           sync.RWMutex
-	nodeStreams  map[string]map[models.StreamType][]string
-	cfg          *config.StreamingConfig
+	mu          sync.RWMutex
+	nodeStreams map[string]map[models.StreamType][]string
+	cfg         *config.StreamingConfig
 }
 
 func NewStreamingStrategy(cfg *config.StreamingConfig) *StreamingStrategy {

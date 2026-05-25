@@ -49,7 +49,7 @@ type RegisterPayload struct {
 
 // RegisterOKPayload is returned on successful registration.
 type RegisterOKPayload struct {
-	TunnelID    string `json:"tunnel_id"`
+	TunnelID     string `json:"tunnel_id"`
 	ExternalAddr string `json:"external_addr"` // Public address for this tunnel
 }
 

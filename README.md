@@ -17,7 +17,7 @@
 | **NAT Node Penetration** | Reverse tunnel, enables intranet nodes to serve traffic | ✅ |
 | **Content-Aware Scheduling** | Bloom Filter + hot content exact indexing, hit-rate-first routing | ✅ |
 | **Live Stream Segment Delivery** | HLS/DASH sliding-window cache + prefetch | ✅ |
-| **Web Admin Console** | Visual management panel for nodes, dispatch, and data monitoring | [Webmanager](https://github.com/im10furry/Edge-Dispatch-Framework-Webmanager) |
+| **Web Admin Console** | Integrated React admin dashboard (nodes, tenants, users, policies, ingress, tasks, audit, settings) | ✅ v0.7 |
 | **HTTP/3 / QUIC** | Next-gen UDP-based transport | ✅ v0.6 |
 | **Small Bandwidth Optimization** | Bandwidth-aware scheduling, P2P peer fetch, smart prefetch, rate limiting, local config UI | ✅ v0.6 |
 | **Content Prewarming** | Push content keys to all edge nodes proactively via admin dashboard | ✅ v0.6 |
@@ -72,13 +72,16 @@
 ```
 ### Web Admin Console
 
-[Edge-Dispatch-Framework-Webmanager](https://github.com/im10furry/Edge-Dispatch-Framework-Webmanager) is the companion Web UI admin panel that provides visual node management, dispatch monitoring, and data presentation via the Control Plane Admin API.
+The admin dashboard is built with React + Ant Design and embedded directly into the Control Plane binary. Access it at `/admin/` on the Control Plane port (default `8080`).
 
 ```bash
-# Clone and start Webmanager
-git clone https://github.com/im10furry/Edge-Dispatch-Framework-Webmanager.git
-cd Edge-Dispatch-Framework-Webmanager
-# See the project README for details
+# Build and start with UI
+cd ui && npm install && npm run build
+make build
+./bin/control-plane
+
+# Dev mode (hot reload, proxies API to CP)
+cd ui && npm run dev
 ```
 
 ---
@@ -414,6 +417,10 @@ docker push your-registry/edf-edge-agent:latest
 
 ```
 .
+├── ui/                           # Admin dashboard (React + Ant Design)
+│   ├── src/                      # TypeScript source
+│   ├── package.json
+│   └── vite.config.ts
 ├── cmd/                          # Service entry points
 │   ├── control-plane/            # Control Plane
 │   ├── edge-agent/               # Edge Node
@@ -531,12 +538,24 @@ GET  /obj/{key}                  # 302 entry point (redirect to best edge node)
 
 ### Admin API (v0.5+)
 
-Requires authentication via Access Key + HMAC signature. Enabled via `CP_ADMIN_ENABLED=true`.
+Requires JWT Bearer token authentication. Enabled via `CP_ADMIN_ENABLED=true`. Serves the Web Admin Console and programmatic access.
 
 ```
-POST /internal/admin/v1/nodes/{nodeID}:disable   # Disable a node
-POST /internal/admin/v1/nodes/{nodeID}:enable    # Enable a node
-POST /internal/admin/v1/nodes/{nodeID}:revoke    # Revoke a node
+# Authentication
+POST /internal/admin/v1/login                   # Login (email + password)
+POST /internal/admin/v1/refresh                 # Refresh JWT token
+POST /internal/admin/v1/logout                  # Logout
+
+# Management
+GET  /internal/admin/v1/dashboard               # Dashboard metrics
+POST /internal/admin/v1/nodes/{id}:disable      # Disable a node
+POST /internal/admin/v1/nodes/{id}:enable       # Enable a node
+POST /internal/admin/v1/nodes/{id}:revoke       # Revoke a node
+GET  /internal/admin/v1/audit                   # Audit log (query + CSV/JSON export)
+GET  /internal/admin/v1/settings                # System settings
+
+# Full CRUD: tenants, users, nodes, policies, ingresses, tasks, cache operations
+# See the Web Admin Console (http://localhost:8080/admin/) for the complete GUI
 ```
 
 ### Other
@@ -549,8 +568,14 @@ GET  /metrics                    # Prometheus metrics (Control Plane / Gateway /
 ## Development
 
 ```bash
-# Build all services
+# Build all services (includes UI)
 make build
+
+# Build UI only
+make ui-build
+
+# Start UI dev server (hot reload, connects to CP at localhost:8080)
+make ui-dev
 
 # Run tests
 make test
@@ -606,7 +631,8 @@ make stress-gateway
 - [x] **v0.4** — HLS/DASH Streaming + Sliding-window Cache + Prefetch
 - [x] **v0.5** — Prometheus Metrics, Hot Key TTL Cleanup, Bug Fixes (v0.1~v0.3)
 - [x] **v0.6** — HTTP/3 QUIC + Helm Chart + 小带宽优化 + P2P + 智能预取 + Admin UI + IPv6
-- [ ] **v0.7** — 分布式追踪 + GeoDNS + 多租户限流 + 控制面 HA
+- [x] **v0.7** — Integrated React Admin Dashboard (Webmanager merged into main repo)
+- [ ] **v0.8** — 分布式追踪 + GeoDNS + 多租户限流 + 控制面 HA
 
 ## Contributing
 

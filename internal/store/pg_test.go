@@ -688,7 +688,7 @@ func TestPGStoreIngressCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	ingress := &models.Ingress{
-		TenantID: "default",
+		TenantID:  "default",
 		ProjectID: "default",
 		Name:      "Test Ingress",
 		Type:      "302",

@@ -68,9 +68,9 @@ func ParseHLSManifest(streamKey string, data []byte) (*models.ManifestInfo, erro
 // ─── DASH (MPEG-DASH .mpd) parsing ────────────────────────────────
 
 type mpdRoot struct {
-	XMLName                  xml.Name   `xml:"MPD"`
-	MediaPresentationDuration string    `xml:"mediaPresentationDuration,attr"`
-	Periods                  []mpdPeriod `xml:"Period"`
+	XMLName                   xml.Name    `xml:"MPD"`
+	MediaPresentationDuration string      `xml:"mediaPresentationDuration,attr"`
+	Periods                   []mpdPeriod `xml:"Period"`
 }
 
 type mpdPeriod struct {
@@ -84,10 +84,10 @@ type mpdAdaptationSet struct {
 }
 
 type mpdSegmentTemplate struct {
-	Timescale    int64  `xml:"timescale,attr"`
-	Duration     int64  `xml:"duration,attr"`
-	StartNumber  int64  `xml:"startNumber,attr"`
-	Media        string `xml:"media,attr"`
+	Timescale      int64  `xml:"timescale,attr"`
+	Duration       int64  `xml:"duration,attr"`
+	StartNumber    int64  `xml:"startNumber,attr"`
+	Media          string `xml:"media,attr"`
 	Initialization string `xml:"initialization,attr"`
 }
 

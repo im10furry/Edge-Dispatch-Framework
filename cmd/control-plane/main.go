@@ -99,18 +99,16 @@ func main() {
 	heartbeat.Start(ctxBg)
 	prober.Start(ctxBg)
 
-	// Start admin dashboard UI (v0.6+)
-	adminUI := adminui.New(cfg, nodeCache)
-	if err := adminUI.Start(); err != nil {
-		logger.Warn("admin UI failed to start", "error", err)
-	}
-	defer adminUI.Shutdown(context.Background())
+	spaHandler := adminui.SPAHandler()
 
-	// Start HTTP server
 	combinedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		if strings.HasPrefix(path, "/internal/admin/v1") && adminHandler != nil {
 			http.StripPrefix("/internal/admin/v1", adminHandler).ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(path, "/admin/") || path == "/admin" {
+			spaHandler.ServeHTTP(w, r)
 			return
 		}
 		handler.ServeHTTP(w, r)

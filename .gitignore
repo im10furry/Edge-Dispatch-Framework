@@ -23,5 +23,10 @@ Thumbs.db
 # Node
 node_modules/
 
+# Web UI
+ui/node_modules/
+ui/dist/
+internal/controlplane/adminui/webui/
+
 # Backup files
 *.bak

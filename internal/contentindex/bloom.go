@@ -139,10 +139,10 @@ func optimalK(capacity int, m uint32) uint32 {
 // ContentIndex is a thread-safe in-memory content cache index.
 // It tracks which nodes have which hot keys and a Bloom filter summary.
 type ContentIndex struct {
-	mu         sync.RWMutex
-	hotKeys    map[string]map[string]struct{} // nodeID -> hot key set
-	blooms     map[string]*BloomFilter      // nodeID -> bloom filter
-	totalKeys  map[string]int64             // nodeID -> total cached keys
+	mu        sync.RWMutex
+	hotKeys   map[string]map[string]struct{} // nodeID -> hot key set
+	blooms    map[string]*BloomFilter        // nodeID -> bloom filter
+	totalKeys map[string]int64               // nodeID -> total cached keys
 }
 
 // NewContentIndex creates an empty content index.

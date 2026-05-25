@@ -27,14 +27,14 @@ type FetchResult struct {
 }
 
 type Fetcher struct {
-	originURL     string
-	client        *http.Client
-	nodeToken     string
-	cb            *circuitBreaker
-	deduper       *deduper
-	p2pFetcher    *P2PFetcher
-	bwLimiter     *BandwidthLimiter
-	useP2P        bool
+	originURL      string
+	client         *http.Client
+	nodeToken      string
+	cb             *circuitBreaker
+	deduper        *deduper
+	p2pFetcher     *P2PFetcher
+	bwLimiter      *BandwidthLimiter
+	useP2P         bool
 	smallBandwidth bool
 }
 
@@ -105,8 +105,8 @@ func (f *Fetcher) FetchWithStrategy(ctx context.Context, key string, rangeHeader
 	return f.doFetch(ctx, key, rangeHeader)
 }
 
-func (f *Fetcher) P2PFetcher() *P2PFetcher  { return f.p2pFetcher }
-func (f *Fetcher) IsSmallBandwidth() bool    { return f.smallBandwidth }
+func (f *Fetcher) P2PFetcher() *P2PFetcher      { return f.p2pFetcher }
+func (f *Fetcher) IsSmallBandwidth() bool       { return f.smallBandwidth }
 func (f *Fetcher) BWLimiter() *BandwidthLimiter { return f.bwLimiter }
 
 func (f *Fetcher) doFetch(ctx context.Context, key string, rangeHeader string) (*FetchResult, error) {

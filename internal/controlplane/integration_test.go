@@ -219,4 +219,3 @@ func TestAPIObjectIngressNoNodes(t *testing.T) {
 		t.Logf("status = %d (may panic with nil scheduler)", resp.StatusCode)
 	}
 }
-
