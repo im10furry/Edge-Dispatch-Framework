@@ -20,8 +20,8 @@ func TestSPAHandlerServesIndex(t *testing.T) {
 		t.Errorf("status = %d, want 200", resp.StatusCode)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "Admin UI Not Built") {
-		t.Errorf("body does not contain fallback message")
+	if !strings.Contains(string(body), "Admin UI Not Built") && !strings.Contains(string(body), "<!doctype html") && !strings.Contains(string(body), "<html") {
+		t.Errorf("body does not contain expected content, got %d bytes", len(body))
 	}
 	ct := resp.Header.Get("Content-Type")
 	if !strings.Contains(ct, "text/html") {

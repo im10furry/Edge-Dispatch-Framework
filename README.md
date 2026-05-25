@@ -17,7 +17,12 @@
 | **NAT Node Penetration** | Reverse tunnel, enables intranet nodes to serve traffic | ✅ |
 | **Content-Aware Scheduling** | Bloom Filter + hot content exact indexing, hit-rate-first routing | ✅ |
 | **Live Stream Segment Delivery** | HLS/DASH sliding-window cache + prefetch | ✅ |
-| **Web Admin Console** | Integrated React admin dashboard (nodes, tenants, users, policies, ingress, tasks, audit, settings) | ✅ v0.7 |
+| **Web Admin Console** | Integrated React admin dashboard (nodes, tenants, users, policies, ingress, tasks, audit, settings, P2P topology, global config) | ✅ v0.7 |
+| **Cache Purge** | Async cache clearance task with worker-based execution across edge nodes | ✅ v0.7 |
+| **Dashboard Time-Series Charts** | QPS, hit rate, latency, node count trend charts on admin dashboard | ✅ v0.7 |
+| **P2P Topology Visualization** | Real-time P2P node and link visualization in admin console | ✅ v0.7 |
+| **Global Config Management** | Centralized bandwidth, P2P, prefetch, and origin fetch config via admin UI | ✅ v0.7 |
+| **Brotli Compression** | Brotli (br) compression on edge agents alongside gzip for better compression ratio | ✅ v0.7 |
 | **HTTP/3 / QUIC** | Next-gen UDP-based transport | ✅ v0.6 |
 | **Small Bandwidth Optimization** | Bandwidth-aware scheduling, P2P peer fetch, smart prefetch, rate limiting, local config UI | ✅ v0.6 |
 | **Content Prewarming** | Push content keys to all edge nodes proactively via admin dashboard | ✅ v0.6 |
@@ -548,13 +553,20 @@ POST /internal/admin/v1/logout                  # Logout
 
 # Management
 GET  /internal/admin/v1/dashboard               # Dashboard metrics
+GET  /internal/admin/v1/p2p/topology             # P2P network topology
+GET  /internal/admin/v1/config                  # Global config (bandwidth, P2P, prefetch)
+PUT  /internal/admin/v1/config                  # Update global config
 POST /internal/admin/v1/nodes/{id}:disable      # Disable a node
 POST /internal/admin/v1/nodes/{id}:enable       # Enable a node
 POST /internal/admin/v1/nodes/{id}:revoke       # Revoke a node
+POST /internal/admin/v1/cache/purge             # Create cache purge task
+GET  /internal/admin/v1/tasks                   # List async tasks
+GET  /internal/admin/v1/tasks/{id}              # Get task status
+POST /internal/admin/v1/tasks/{id}:cancel       # Cancel running task
 GET  /internal/admin/v1/audit                   # Audit log (query + CSV/JSON export)
 GET  /internal/admin/v1/settings                # System settings
 
-# Full CRUD: tenants, users, nodes, policies, ingresses, tasks, cache operations
+# Full CRUD: tenants, users, nodes, policies, ingresses
 # See the Web Admin Console (http://localhost:8080/admin/) for the complete GUI
 ```
 
@@ -631,7 +643,7 @@ make stress-gateway
 - [x] **v0.4** — HLS/DASH Streaming + Sliding-window Cache + Prefetch
 - [x] **v0.5** — Prometheus Metrics, Hot Key TTL Cleanup, Bug Fixes (v0.1~v0.3)
 - [x] **v0.6** — HTTP/3 QUIC + Helm Chart + 小带宽优化 + P2P + 智能预取 + Admin UI + IPv6
-- [x] **v0.7** — Integrated React Admin Dashboard (Webmanager merged into main repo)
+- [x] **v0.7** — React 管理控制台整合 + 缓存清除 + Dashboard 时序图表 + P2P 拓扑可视化 + 全局配置管理 + Brotli 压缩
 - [ ] **v0.8** — 分布式追踪 + GeoDNS + 多租户限流 + 控制面 HA
 
 ## Contributing

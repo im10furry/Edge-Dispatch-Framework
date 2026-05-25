@@ -19,9 +19,11 @@
 | 数据库 | PostgreSQL 16（pgx/v5） |
 | 缓存/消息 | Redis 7（go-redis/v9） |
 | ID 生成 | google/uuid |
+| 压缩 | gzip + brotli (andybalholm/brotli) |
 | 容器化 | Docker Compose |
 | 测试 | 标准 `testing` 包 |
 | 前端 | React 18 + Ant Design 5 + TypeScript + Vite |
+| 图表 | @ant-design/charts |
 
 ## 目录结构
 
@@ -37,11 +39,12 @@ cmd/                    # 服务入口（main.go）
 
 internal/               # 核心库（不可导出）
   auth/                 # HMAC Token
+  autotls/              # 自动 TLS 证书生成
   config/               # 环境变量配置
   contentindex/         # Bloom Filter + 热内容索引
-  controlplane/         # 控制面核心
+  controlplane/         # 控制面核心（含 task_executor）
   dns/                  # DNS 服务器
-  edgeagent/            # 边缘节点核心
+  edgeagent/            # 边缘节点核心（含 brotli 压缩）
   gateway/              # 网关反代
   metrics/              # Prometheus 指标
   models/               # 共享数据模型
@@ -170,8 +173,8 @@ if err := store.Upsert(ctx, data); err != nil {
 | v0.3 | ✅ 完成 | — |
 | v0.4 | ✅ 完成 | DASH 分段数已动态化、预取 URL 已动态化（v0.6 修复） |
 | v0.5 | ✅ 基本完成 | HTTP/3 QUIC 已实现（build tag `quic`）、Helm Chart 已实现 |
-| v0.6 | ✅ 基本完成 | 小带宽优化 + P2P + 智能预取 + Admin UI + Helm Chart + QUIC 客户端已完成 |
-| v0.7 | ✅ 完成 | React 管理控制台已整合到主仓库（`ui/`），嵌入 CP 二进制，通过 `/admin/` 路径访问 |
+| v0.6 | ✅ 完成 | 小带宽优化 + P2P + 智能预取 + Admin UI + Helm Chart + QUIC 客户端已完成 |
+| v0.7 | ✅ 完成 | 缓存清除 + Dashboard 时序图表 + P2P 拓扑可视化 + 全局配置管理 + Brotli 压缩 |
 
 ## 已知 Bug（需优先修复）
 
