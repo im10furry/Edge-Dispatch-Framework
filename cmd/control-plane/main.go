@@ -85,7 +85,7 @@ func main() {
 	// Initialize Admin API (v0.5)
 	var adminHandler http.Handler
 	if cfg.Admin.Enabled {
-		adminHandler, err = controlplane.NewAdminAPI(pgStore, redisStore, registry, &cfg.Admin)
+		adminHandler, err = controlplane.NewAdminAPI(pgStore, redisStore, registry, scheduler, &cfg.Admin)
 		if err != nil {
 			logger.Error("failed to create admin API", "error", err)
 			os.Exit(1)

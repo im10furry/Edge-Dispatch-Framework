@@ -30,6 +30,7 @@ type AdminAPI struct {
 	pg         *store.PGStore
 	redis      *store.RedisStore
 	registry   *Registry
+	scheduler  *Scheduler
 	cfg        *config.AdminAPIConfig
 	adminAuth  *auth.AdminAuth
 	nonceCache *auth.NonceCache
@@ -37,7 +38,7 @@ type AdminAPI struct {
 }
 
 // NewAdminAPI creates a new admin API handler group.
-func NewAdminAPI(pg *store.PGStore, redis *store.RedisStore, registry *Registry, adminCfg *config.AdminAPIConfig) (http.Handler, error) {
+func NewAdminAPI(pg *store.PGStore, redis *store.RedisStore, registry *Registry, scheduler *Scheduler, adminCfg *config.AdminAPIConfig) (http.Handler, error) {
 	if adminCfg == nil || !adminCfg.Enabled {
 		return nil, nil
 	}
@@ -50,6 +51,7 @@ func NewAdminAPI(pg *store.PGStore, redis *store.RedisStore, registry *Registry,
 		pg:         pg,
 		redis:      redis,
 		registry:   registry,
+		scheduler:  scheduler,
 		cfg:        adminCfg,
 		adminAuth:  adminAuth,
 		nonceCache: nonceCache,
@@ -169,6 +171,10 @@ func NewAdminAPI(pg *store.PGStore, redis *store.RedisStore, registry *Registry,
 
 		// P2P Topology
 		r.Get("/p2p/topology", a.handleP2PTopology)
+
+		// Global Config
+		r.Get("/config", a.handleGetConfig)
+		r.Put("/config", a.handleUpdateConfig)
 
 		// Settings
 		r.Get("/settings", a.handleGetSettings)
@@ -1312,6 +1318,22 @@ func (a *AdminAPI) handleP2PTopology(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a.writeJSON(w, http.StatusOK, topo)
+}
+
+func (a *AdminAPI) handleGetConfig(w http.ResponseWriter, r *http.Request) {
+	if a.scheduler == nil {
+		a.writeError(w, http.StatusInternalServerError, "NO_SCHEDULER", "scheduler not available")
+		return
+	}
+	a.scheduler.handleAdminGetConfig(w, r)
+}
+
+func (a *AdminAPI) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
+	if a.scheduler == nil {
+		a.writeError(w, http.StatusInternalServerError, "NO_SCHEDULER", "scheduler not available")
+		return
+	}
+	a.scheduler.handleAdminUpdateConfig(w, r)
 }
 
 // ─── Settings Handlers ─────────────────────────────────────────

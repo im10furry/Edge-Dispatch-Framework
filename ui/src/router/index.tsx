@@ -19,6 +19,7 @@ const TaskListPage = lazy(() => import('../pages/tasks/TaskListPage'));
 const TaskDetailPage = lazy(() => import('../pages/tasks/TaskDetailPage'));
 const AuditPage = lazy(() => import('../pages/AuditPage'));
 const P2PTopologyPage = lazy(() => import('../pages/P2PTopologyPage'));
+const GlobalConfigPage = lazy(() => import('../pages/GlobalConfigPage'));
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
 const AccountPage = lazy(() => import('../pages/AccountPage'));
 
@@ -155,6 +156,14 @@ export const router = createBrowserRouter(
         element: (
           <LazyPage>
             <P2PTopologyPage />
+          </LazyPage>
+        ),
+      },
+      {
+        path: 'config',
+        element: (
+          <LazyPage>
+            <GlobalConfigPage />
           </LazyPage>
         ),
       },

@@ -10,6 +10,7 @@ import {
   AuditOutlined,
   ClusterOutlined,
   SettingOutlined,
+  ControlOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
 } from '@ant-design/icons';
@@ -30,6 +31,7 @@ const menuItems = [
   { key: '/tasks', icon: <SyncOutlined />, label: '缓存任务' },
   { key: '/audit', icon: <AuditOutlined />, label: '审计日志' },
   { key: '/p2p', icon: <ClusterOutlined />, label: 'P2P 拓扑' },
+  { key: '/config', icon: <ControlOutlined />, label: '全局配置' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];
 
