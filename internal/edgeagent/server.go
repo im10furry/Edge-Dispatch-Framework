@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/andybalholm/brotli"
 	"github.com/darkinno/edge-dispatch-framework/internal/auth"
 	"github.com/darkinno/edge-dispatch-framework/internal/config"
 	"github.com/darkinno/edge-dispatch-framework/internal/metrics"
@@ -128,7 +129,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/internal/push/purge", s.handlePurge)
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/metrics", s.handleMetrics)
-	return withRecovery(withCommonHeaders(withGzipCompression(mux)))
+	return withRecovery(withCommonHeaders(withCompression(mux)))
 }
 
 var commonRespHeaders = map[string]string{
@@ -146,13 +147,38 @@ func withCommonHeaders(next http.Handler) http.Handler {
 	})
 }
 
-type gzipResponseWriter struct {
+func withCompression(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ae := r.Header.Get("Accept-Encoding")
+		if strings.Contains(ae, "br") {
+			bw := brotli.NewWriterLevel(w, brotli.BestSpeed)
+			defer bw.Close()
+			w.Header().Set("Content-Encoding", "br")
+			w.Header().Del("Content-Length")
+			gw := &compressedResponseWriter{Writer: bw, ResponseWriter: w}
+			next.ServeHTTP(gw, r)
+			return
+		}
+		if strings.Contains(ae, "gzip") {
+			gz, _ := gzip.NewWriterLevel(w, gzip.BestSpeed)
+			defer gz.Close()
+			w.Header().Set("Content-Encoding", "gzip")
+			w.Header().Del("Content-Length")
+			gw := &compressedResponseWriter{Writer: gz, ResponseWriter: w}
+			next.ServeHTTP(gw, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+type compressedResponseWriter struct {
 	io.Writer
 	http.ResponseWriter
 	wroteHeader bool
 }
 
-func (w *gzipResponseWriter) WriteHeader(code int) {
+func (w *compressedResponseWriter) WriteHeader(code int) {
 	if w.wroteHeader {
 		return
 	}
@@ -165,14 +191,14 @@ func (w *gzipResponseWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
-func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+func (w *compressedResponseWriter) Write(b []byte) (int, error) {
 	if !w.wroteHeader {
 		w.WriteHeader(http.StatusOK)
 	}
 	return w.Writer.Write(b)
 }
 
-func (w *gzipResponseWriter) Flush() {
+func (w *compressedResponseWriter) Flush() {
 	if f, ok := w.Writer.(http.Flusher); ok {
 		f.Flush()
 	}
@@ -189,20 +215,6 @@ func isCompressible(ct string) bool {
 		strings.HasPrefix(ct, "text/") ||
 		strings.HasPrefix(ct, "application/javascript") ||
 		strings.HasPrefix(ct, "application/xml")
-}
-
-func withGzipCompression(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			next.ServeHTTP(w, r)
-			return
-		}
-		gz, _ := gzip.NewWriterLevel(w, gzip.BestSpeed)
-		defer gz.Close()
-		w.Header().Set("Content-Encoding", "gzip")
-		w.Header().Del("Content-Length")
-		next.ServeHTTP(&gzipResponseWriter{Writer: gz, ResponseWriter: w}, r)
-	})
 }
 
 func (s *Server) Start(ctx context.Context) error {
