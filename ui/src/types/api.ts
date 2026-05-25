@@ -115,6 +115,7 @@ export interface User {
   created_at: string;
   updated_at: string;
   roles: RoleBinding[];
+  must_change_password: boolean;
 }
 
 export interface LoginRequest {
@@ -128,6 +129,17 @@ export interface LoginResponse {
   user: User;
   expires_at: number;
   roles: RoleBinding[];
+  must_change_password: boolean;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface NodeCredential {
+  node_id: string;
+  token: string;
 }
 
 export interface RefreshRequest {

@@ -443,6 +443,7 @@ type User struct {
 	Email       string        `json:"email"`
 	DisplayName string        `json:"display_name"`
 	Roles       []RoleBinding `json:"roles,omitempty"`
+	MustChange  bool          `json:"must_change_password"`
 }
 
 // RoleBinding assigns a role to a user scoped to a tenant/project.
@@ -625,6 +626,19 @@ type LoginResponse struct {
 	User         User          `json:"user"`
 	ExpiresAt    int64         `json:"expires_at"`
 	Roles        []RoleBinding `json:"roles"`
+	MustChange   bool          `json:"must_change_password"`
+}
+
+// ChangePasswordRequest is the payload for changing the current user's password.
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// NodeCredential contains the auth token for an edge node.
+type NodeCredential struct {
+	NodeID string `json:"node_id"`
+	Token  string `json:"token"`
 }
 
 // PaginatedResponse wraps list responses with pagination info.

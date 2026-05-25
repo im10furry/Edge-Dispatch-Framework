@@ -99,6 +99,7 @@ func (s *LocalConfigServer) handleAPIConfig(w http.ResponseWriter, r *http.Reque
 			"prefetch_bw_limit":     s.cfg.PrefetchBandwidthLimit,
 			"prefetch_night_start":  s.cfg.PrefetchNightModeStart,
 			"prefetch_night_end":    s.cfg.PrefetchNightModeEnd,
+			"node_token":            s.cfg.NodeToken,
 		})
 		return
 	}

@@ -80,6 +80,7 @@ func NewAdminAPI(pg *store.PGStore, redis *store.RedisStore, registry *Registry,
 			TenantID:    "default",
 			Email:       "admin@edf.local",
 			DisplayName: "Admin",
+			MustChange:  true,
 			Roles: []models.RoleBinding{
 				{Role: models.UserRoleTenantOwner, TenantID: "default"},
 			},
@@ -105,6 +106,7 @@ func NewAdminAPI(pg *store.PGStore, redis *store.RedisStore, registry *Registry,
 
 		r.Post("/logout", a.handleLogout)
 		r.Get("/me", a.handleMe)
+		r.Put("/me/password", a.handleChangePassword)
 
 		// Tenants
 		r.Post("/tenants", a.handleCreateTenant)
@@ -130,6 +132,7 @@ func NewAdminAPI(pg *store.PGStore, redis *store.RedisStore, registry *Registry,
 		// Node management
 		r.Get("/nodes", a.handleListNodes)
 		r.Get("/nodes/{nodeID}", a.handleGetNode)
+		r.Get("/nodes/{nodeID}/credentials", a.handleGetNodeCredentials)
 		r.Post("/nodes/{nodeID}:disable", a.handleDisableNode)
 		r.Post("/nodes/{nodeID}:enable", a.handleEnableNode)
 		r.Post("/nodes/{nodeID}:revoke", a.handleRevokeNode)
@@ -247,6 +250,7 @@ func (a *AdminAPI) handleLogin(w http.ResponseWriter, r *http.Request) {
 		User:         *user,
 		ExpiresAt:    exp,
 		Roles:        user.Roles,
+		MustChange:   user.MustChange,
 	})
 }
 
@@ -317,13 +321,72 @@ func (a *AdminAPI) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *AdminAPI) handleMe(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-Actor-UserId")
-	user, err := a.pg.GetUser(r.Context(), userID)
+	actorID := r.Header.Get("X-Actor-UserId")
+	if actorID == "" {
+		a.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "user id not found")
+		return
+	}
+
+	user, err := a.pg.GetUser(r.Context(), actorID)
 	if err != nil {
 		a.writeError(w, http.StatusNotFound, "NOT_FOUND", "user not found")
 		return
 	}
+
 	a.writeJSON(w, http.StatusOK, user)
+}
+
+func (a *AdminAPI) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	actorID := r.Header.Get("X-Actor-UserId")
+	if actorID == "" {
+		a.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "user id not found")
+		return
+	}
+
+	if ct := r.Header.Get("Content-Type"); ct != "" && !strings.HasPrefix(ct, "application/json") {
+		a.writeError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Content-Type must be application/json")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodySize)
+
+	var req models.ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
+		return
+	}
+
+	if len(req.NewPassword) < 8 {
+		a.writeError(w, http.StatusBadRequest, "WEAK_PASSWORD", "new password must be at least 8 characters")
+		return
+	}
+	if len(req.NewPassword) > 72 {
+		a.writeError(w, http.StatusBadRequest, "PASSWORD_TOO_LONG", "password must be at most 72 characters")
+		return
+	}
+
+	currentHash, err := a.pg.GetUserPasswordHash(r.Context(), actorID)
+	if err != nil {
+		a.writeError(w, http.StatusInternalServerError, "AUTH_FAILED", "failed to verify current password")
+		return
+	}
+
+	if bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(req.CurrentPassword)) != nil {
+		a.writeError(w, http.StatusBadRequest, "WRONG_PASSWORD", "current password is incorrect")
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		a.writeError(w, http.StatusInternalServerError, "AUTH_FAILED", "failed to hash new password")
+		return
+	}
+
+	if err := a.pg.UpdateUserPassword(r.Context(), actorID, string(hash)); err != nil {
+		a.writeError(w, http.StatusInternalServerError, "UPDATE_FAILED", "failed to update password")
+		return
+	}
+
+	a.writeJSON(w, http.StatusOK, map[string]string{"status": "password_changed"})
 }
 
 func (a *AdminAPI) handleAdminHealthz(w http.ResponseWriter, r *http.Request) {
@@ -670,6 +733,19 @@ func (a *AdminAPI) handleGetNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.writeJSON(w, http.StatusOK, node)
+}
+
+func (a *AdminAPI) handleGetNodeCredentials(w http.ResponseWriter, r *http.Request) {
+	nodeID := chi.URLParam(r, "nodeID")
+	token, err := a.pg.GetNodeToken(r.Context(), nodeID)
+	if err != nil {
+		a.writeError(w, http.StatusNotFound, "NOT_FOUND", "node not found")
+		return
+	}
+	a.writeJSON(w, http.StatusOK, models.NodeCredential{
+		NodeID: nodeID,
+		Token:  token,
+	})
 }
 
 func (a *AdminAPI) handleDisableNode(w http.ResponseWriter, r *http.Request) {

@@ -1,171 +1,221 @@
-import { useNavigate } from 'react-router-dom';
-import {
-  Card,
-  Descriptions,
-  Tag,
-  Input,
-  Button,
-  Space,
-  Divider,
-  Avatar,
-  Modal,
-} from 'antd';
-import {
-  UserOutlined,
-  LogoutOutlined,
-  MailOutlined,
-  LockOutlined,
-} from '@ant-design/icons';
-import { useAuthStore } from '../store/authStore';
+import { useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Card, Descriptions, Tag, Button, Input, Alert, Typography, Divider, Modal, message } from 'antd';
+import { UserOutlined, LockOutlined, LogoutOutlined, KeyOutlined } from '@ant-design/icons';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import client from '../api/client';
-import type { UserRole } from '../types/api';
+import { useAuthStore } from '../store/authStore';
+import type { User, ChangePasswordRequest, ErrorResponse } from '../types/api';
+import { AxiosError } from 'axios';
 
-const roleLabelMap: Record<UserRole, string> = {
-  tenant_owner: '租户所有者',
-  tenant_admin: '租户管理员',
-  project_operator: '项目操作员',
-  project_viewer: '项目查看者',
+const { Title, Text } = Typography;
+
+const ROLE_LABELS: Record<string, { color: string; label: string }> = {
+  tenant_owner: { color: 'gold', label: '超级管理员' },
+  tenant_admin: { color: 'blue', label: '管理员' },
+  project_operator: { color: 'green', label: '操作员' },
+  project_viewer: { color: 'default', label: '观察者' },
 };
-
-const roleColorMap: Record<UserRole, string> = {
-  tenant_owner: 'red',
-  tenant_admin: 'orange',
-  project_operator: 'blue',
-  project_viewer: 'default',
-};
-
-function maskPassword(pw: string) {
-  if (!pw) return '';
-  const len = pw.length;
-  if (len <= 2) return pw[0] + '*';
-  return pw[0] + '*'.repeat(len - 2) + pw[len - 1];
-}
 
 export default function AccountPage() {
   const navigate = useNavigate();
-  const { user, roles, logout } = useAuthStore();
+  const [searchParams] = useSearchParams();
+  const isSetup = searchParams.get('setup') === '1';
+  const { user, logout, setUser } = useAuthStore();
+  const [logoutModal, setLogoutModal] = useState(false);
+
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [pwdSuccess, setPwdSuccess] = useState(false);
+
+  const { data: freshUser } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => client.get<User>('/me').then((r) => r.data),
+  });
+
+  const displayUser = freshUser || user;
+
+  const changeMutation = useMutation({
+    mutationFn: (body: ChangePasswordRequest) => client.put('/me/password', body),
+    onSuccess: () => {
+      setPwdSuccess(true);
+      setPwdError(null);
+      setCurrentPwd('');
+      setNewPwd('');
+      setConfirmPwd('');
+      if (freshUser) {
+        setUser({ ...freshUser, must_change_password: false });
+      }
+      message.success('密码已修改，请重新登录');
+      setTimeout(() => {
+        logout();
+        navigate('/login', { replace: true });
+      }, 2000);
+    },
+    onError: (err: AxiosError<ErrorResponse>) => {
+      setPwdError(err.response?.data?.error?.message || '密码修改失败');
+    },
+  });
+
+  const handleChangePassword = () => {
+    setPwdError(null);
+    if (!currentPwd) {
+      setPwdError('请输入当前密码');
+      return;
+    }
+    if (!newPwd || newPwd.length < 8) {
+      setPwdError('新密码至少 8 个字符');
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      setPwdError('两次输入的新密码不一致');
+      return;
+    }
+    changeMutation.mutate({ current_password: currentPwd, new_password: newPwd });
+  };
 
   const handleLogout = async () => {
     try {
-      await client.post('/logout', undefined, { skipAuthRefresh: true });
-    } catch {
-      // ignore
-    }
+      await client.post('/logout');
+    } catch { /* ignore */ }
     logout();
     navigate('/login', { replace: true });
   };
 
-  if (!user) {
-    return (
-      <Card>
-        <div style={{ textAlign: 'center', padding: 40, color: '#8b949e' }}>
-          未获取到用户信息
-        </div>
-      </Card>
-    );
-  }
+  if (!displayUser) return null;
 
   return (
-    <div style={{ maxWidth: 720 }}>
-      <Card size="small" title="个人信息" style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20 }}>
-          <Avatar size={64} icon={<UserOutlined />} style={{ backgroundColor: '#1f6feb' }} />
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>{user.display_name || user.email}</div>
-            <div style={{ color: '#8b949e', fontSize: 13 }}>
-              <MailOutlined style={{ marginRight: 6 }} />
-              {user.email}
-            </div>
-          </div>
-        </div>
+    <div>
+      <Title level={4} style={{ marginBottom: 24 }}>
+        <UserOutlined style={{ marginRight: 8 }} />
+        个人信息
+      </Title>
 
-        <Descriptions column={1} size="small" colon={false}>
+      {isSetup && !pwdSuccess && (
+        <Alert
+          type="warning"
+          message="首次登录 — 请修改默认密码"
+          description="检测到您正在使用默认密码。出于安全考虑，请立即修改密码。"
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
+      )}
+
+      {pwdSuccess && (
+        <Alert
+          type="success"
+          message="密码修改成功，即将跳转到登录页..."
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
+      )}
+
+      <Card style={{ marginBottom: 24 }}>
+        <Descriptions column={1} size="small" labelStyle={{ width: 100 }}>
+          <Descriptions.Item label="用户名">{displayUser.display_name}</Descriptions.Item>
+          <Descriptions.Item label="邮箱">{displayUser.email}</Descriptions.Item>
           <Descriptions.Item label="用户 ID">
-            <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{user.user_id}</span>
+            <Text code style={{ fontSize: 11 }}>{displayUser.user_id}</Text>
           </Descriptions.Item>
           <Descriptions.Item label="租户 ID">
-            <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{user.tenant_id}</span>
+            <Text code style={{ fontSize: 11 }}>{displayUser.tenant_id}</Text>
           </Descriptions.Item>
-          <Descriptions.Item label="注册时间">
-            {new Date(user.created_at).toLocaleString('zh-CN')}
+          <Descriptions.Item label="创建时间">
+            {new Date(displayUser.created_at).toLocaleString('zh-CN')}
+          </Descriptions.Item>
+          <Descriptions.Item label="角色">
+            {displayUser.roles.map((r, i) => {
+              const cfg = ROLE_LABELS[r.role] || { color: 'default', label: r.role };
+              return <Tag key={i} color={cfg.color}>{cfg.label}</Tag>;
+            })}
           </Descriptions.Item>
         </Descriptions>
+      </Card>
 
-        <Divider />
-
-        <div style={{ marginBottom: 8, fontWeight: 500 }}>角色权限</div>
-        {roles.length === 0 ? (
-          <span style={{ color: '#8b949e' }}>无角色</span>
-        ) : (
-          <Space wrap size={[6, 6]}>
-            {roles.map((r, i) => (
-              <Tag key={`${r.role}-${i}`} color={roleColorMap[r.role]}>
-                {roleLabelMap[r.role] || r.role}
-                <span style={{ marginLeft: 8, opacity: 0.7, fontSize: 12 }}>
-                  {r.tenant_id}/{r.project_id || '*'}
-                </span>
-              </Tag>
-            ))}
-          </Space>
+      <Card
+        title={<span><KeyOutlined style={{ marginRight: 6 }} />{isSetup ? '设置新密码' : '修改密码'}</span>}
+        style={{ marginBottom: 24 }}
+      >
+        {isSetup && (
+          <Alert
+            type="info"
+            message="密码要求：至少 8 个字符，最多 72 个字符"
+            showIcon={false}
+            style={{ marginBottom: 16 }}
+          />
         )}
-      </Card>
+        {pwdError && (
+          <Alert type="error" message={pwdError} showIcon closable onClose={() => setPwdError(null)} style={{ marginBottom: 16 }} />
+        )}
 
-      <Card size="small" title="修改密码" style={{ marginBottom: 24 }}>
-        <div
-          style={{
-            padding: '12px 16px',
-            background: '#1c2733',
-            borderRadius: 6,
-            border: '1px solid #30363d',
-            marginBottom: 16,
-            color: '#d29922',
-            fontSize: 13,
-          }}
-        >
-          密码修改功能暂未开放，如需修改密码请联系系统管理员。
-        </div>
+        <div style={{ maxWidth: 400 }}>
+          <div style={{ marginBottom: 16 }}>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>当前密码</Text>
+            <Input.Password
+              prefix={<LockOutlined />}
+              placeholder="输入当前密码"
+              value={currentPwd}
+              onChange={(e) => setCurrentPwd(e.target.value)}
+              onPressEnter={handleChangePassword}
+            />
+          </div>
 
-        <Space direction="vertical" size={16} style={{ width: '100%', maxWidth: 400 }}>
-          <Input.Password
-            prefix={<LockOutlined />}
-            placeholder="当前密码"
-            disabled
-            value={maskPassword('placeholder')}
-          />
-          <Input.Password
-            prefix={<LockOutlined />}
-            placeholder="新密码"
-            disabled
-          />
-          <Input.Password
-            prefix={<LockOutlined />}
-            placeholder="确认新密码"
-            disabled
-          />
-          <Button type="primary" disabled block>
-            修改密码
+          <div style={{ marginBottom: 16 }}>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>新密码</Text>
+            <Input.Password
+              prefix={<KeyOutlined />}
+              placeholder="输入新密码（至少 8 位）"
+              value={newPwd}
+              onChange={(e) => setNewPwd(e.target.value)}
+              onPressEnter={handleChangePassword}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>确认新密码</Text>
+            <Input.Password
+              prefix={<KeyOutlined />}
+              placeholder="再次输入新密码"
+              value={confirmPwd}
+              onChange={(e) => setConfirmPwd(e.target.value)}
+              onPressEnter={handleChangePassword}
+            />
+          </div>
+
+          <Button
+            type="primary"
+            block
+            icon={<KeyOutlined />}
+            loading={changeMutation.isPending}
+            onClick={handleChangePassword}
+          >
+            {isSetup ? '设置密码并登录' : '修改密码'}
           </Button>
-        </Space>
+        </div>
       </Card>
+
+      <Divider />
 
       <Button
         danger
         icon={<LogoutOutlined />}
-        size="large"
-        block
-        onClick={() => {
-          Modal.confirm({
-            title: '确认退出',
-            content: '确定要退出登录吗？',
-            okText: '退出',
-            cancelText: '取消',
-            okButtonProps: { danger: true },
-            onOk: handleLogout,
-          });
-        }}
+        onClick={() => setLogoutModal(true)}
       >
         退出登录
       </Button>
+
+      <Modal
+        title="确认退出"
+        open={logoutModal}
+        onOk={handleLogout}
+        onCancel={() => setLogoutModal(false)}
+        okText="退出"
+        cancelText="取消"
+      >
+        确定要退出登录吗？
+      </Modal>
     </div>
   );
 }

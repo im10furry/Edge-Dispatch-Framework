@@ -7,13 +7,13 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, StopOutlined, CheckCircleOutlined,
-  ExclamationCircleOutlined,
+  ExclamationCircleOutlined, KeyOutlined, EyeOutlined, EyeInvisibleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import client from '../../api/client';
-import type { Node, DisableNodeRequest, NodeAdminPatch } from '../../types/api';
+import type { Node, DisableNodeRequest, NodeAdminPatch, NodeCredential } from '../../types/api';
 import { NODE_STATUS_MAP as StatusMap } from './nodeStatus';
 
 dayjs.extend(relativeTime);
@@ -62,6 +62,10 @@ export default function NodeDetailPage() {
   const [revokeConfirm, setRevokeConfirm] = useState('');
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [editLabels, setEditLabels] = useState<Array<{ key: string; value: string }>>([]);
+  const [credModalOpen, setCredModalOpen] = useState(false);
+  const [credToken, setCredToken] = useState('');
+  const [credLoading, setCredLoading] = useState(false);
+  const [tokenVisible, setTokenVisible] = useState(false);
 
   const { data: node, isLoading } = useQuery({
     queryKey: ['node', nodeID],
@@ -153,6 +157,20 @@ export default function NodeDetailPage() {
     labelsMutation.mutate(labels);
   };
 
+  const handleShowCredentials = async () => {
+    setCredLoading(true);
+    try {
+      const res = await client.get<NodeCredential>(`/nodes/${nodeID}/credentials`);
+      setCredToken(res.data.token);
+      setTokenVisible(false);
+      setCredModalOpen(true);
+    } catch {
+      message.error('获取凭证失败');
+    } finally {
+      setCredLoading(false);
+    }
+  };
+
   const handleAddLabelRow = () => {
     setEditLabels((prev) => [...prev, { key: '', value: '' }]);
   };
@@ -210,6 +228,13 @@ export default function NodeDetailPage() {
               禁用节点
             </Button>
           )}
+          <Button
+            icon={<KeyOutlined />}
+            loading={credLoading}
+            onClick={handleShowCredentials}
+          >
+            凭证
+          </Button>
           <Button
             danger
             icon={<ExclamationCircleOutlined />}
@@ -506,6 +531,82 @@ export default function NodeDetailPage() {
           <Typography.Text type="secondary">暂无标签</Typography.Text>
         )}
       </Card>
+
+      {/* Credentials Modal */}
+      <Modal
+        title={
+          <Space>
+            <KeyOutlined style={{ color: '#d29922' }} />
+            <span>节点凭证</span>
+          </Space>
+        }
+        open={credModalOpen}
+        onCancel={() => { setCredModalOpen(false); setTokenVisible(false); }}
+        footer={
+          <Button onClick={() => { setCredModalOpen(false); setTokenVisible(false); }}>关闭</Button>
+        }
+        destroyOnClose
+      >
+        <Card
+          size="small"
+          style={{
+            background: 'rgba(210,153,34,0.08)',
+            border: '1px solid rgba(210,153,34,0.2)',
+            marginBottom: 16,
+          }}
+        >
+          <Typography.Text type="warning" strong>
+            <ExclamationCircleOutlined style={{ marginRight: 6 }} />
+            请妥善保管此凭证
+          </Typography.Text>
+          <br />
+          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            此 Token 用于边缘节点与调度中心通信，请勿泄露。
+          </Typography.Text>
+        </Card>
+        <div>
+          <Typography.Text strong>节点 ID</Typography.Text>
+          <Typography.Paragraph copyable style={{ marginTop: 4 }}>
+            {node?.node_id}
+          </Typography.Paragraph>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography.Text strong>Token</Typography.Text>
+            <Button
+              type="text"
+              size="small"
+              icon={tokenVisible ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+              onClick={() => setTokenVisible(!tokenVisible)}
+            >
+              {tokenVisible ? '隐藏' : '显示'}
+            </Button>
+          </div>
+          <div
+            style={{
+              background: 'rgba(0,0,0,0.2)',
+              padding: 12,
+              borderRadius: 6,
+              marginTop: 8,
+              wordBreak: 'break-all',
+              fontFamily: 'monospace',
+              fontSize: 13,
+            }}
+          >
+            {credToken ? (
+              tokenVisible ? (
+                <Typography.Text copyable>{credToken}</Typography.Text>
+              ) : (
+                <Typography.Text type="secondary">
+                  {'*'.repeat(Math.min(credToken.length, 36))}
+                </Typography.Text>
+              )
+            ) : (
+              <Typography.Text type="secondary">加载中...</Typography.Text>
+            )}
+          </div>
+        </div>
+      </Modal>
 
       {/* Disable Modal */}
       <Modal

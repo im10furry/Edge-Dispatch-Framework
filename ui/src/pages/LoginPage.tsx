@@ -32,8 +32,12 @@ export default function LoginPage() {
         email,
         password,
       } as LoginRequest, { skipAuthRefresh: true });
-      const { token, refresh_token, user, roles } = res.data;
+      const { token, refresh_token, user, roles, must_change_password } = res.data;
       setAuth(token, refresh_token, user, roles, remember);
+      if (must_change_password) {
+        navigate('/account?setup=1', { replace: true });
+        return;
+      }
       const from = (location.state as { from?: string } | null)?.from;
       navigate(from && from !== '/login' ? from : '/', { replace: true });
     } catch (err) {
