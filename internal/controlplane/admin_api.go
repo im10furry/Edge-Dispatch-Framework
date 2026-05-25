@@ -167,6 +167,9 @@ func NewAdminAPI(pg *store.PGStore, redis *store.RedisStore, registry *Registry,
 		// Dashboard
 		r.Get("/dashboard", a.handleDashboard)
 
+		// P2P Topology
+		r.Get("/p2p/topology", a.handleP2PTopology)
+
 		// Settings
 		r.Get("/settings", a.handleGetSettings)
 		r.Put("/settings", a.handleUpdateSettings)
@@ -1282,6 +1285,33 @@ func (a *AdminAPI) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.writeJSON(w, http.StatusOK, dm)
+}
+
+func (a *AdminAPI) handleP2PTopology(w http.ResponseWriter, r *http.Request) {
+	nodes, err := a.pg.ListActiveNodes(r.Context())
+	if err != nil {
+		a.writeError(w, http.StatusInternalServerError, "TOPO_FAILED", "failed to list nodes")
+		return
+	}
+
+	topo := P2PTopology{
+		Nodes: make([]P2PTopologyNode, 0, len(nodes)),
+		Links: make([]P2PTopologyLink, 0),
+	}
+
+	for _, n := range nodes {
+		isSmall := n.Capabilities.MaxUplinkMbps > 0 && n.Capabilities.MaxUplinkMbps < 100
+		topo.Nodes = append(topo.Nodes, P2PTopologyNode{
+			NodeID:           n.NodeID,
+			Name:             n.Name,
+			BandwidthMbps:    n.Capabilities.MaxUplinkMbps,
+			IsSmallBandwidth: isSmall,
+			CacheHitRatio:    0,
+			Status:           string(n.Status),
+		})
+	}
+
+	a.writeJSON(w, http.StatusOK, topo)
 }
 
 // ─── Settings Handlers ─────────────────────────────────────────

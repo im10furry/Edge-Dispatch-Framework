@@ -18,6 +18,7 @@ const IngressDetailPage = lazy(() => import('../pages/ingresses/IngressDetailPag
 const TaskListPage = lazy(() => import('../pages/tasks/TaskListPage'));
 const TaskDetailPage = lazy(() => import('../pages/tasks/TaskDetailPage'));
 const AuditPage = lazy(() => import('../pages/AuditPage'));
+const P2PTopologyPage = lazy(() => import('../pages/P2PTopologyPage'));
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
 const AccountPage = lazy(() => import('../pages/AccountPage'));
 
@@ -146,6 +147,14 @@ export const router = createBrowserRouter(
         element: (
           <LazyPage>
             <AuditPage />
+          </LazyPage>
+        ),
+      },
+      {
+        path: 'p2p',
+        element: (
+          <LazyPage>
+            <P2PTopologyPage />
           </LazyPage>
         ),
       },

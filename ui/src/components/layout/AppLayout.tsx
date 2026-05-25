@@ -8,6 +8,7 @@ import {
   GlobalOutlined,
   SyncOutlined,
   AuditOutlined,
+  ClusterOutlined,
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -28,6 +29,7 @@ const menuItems = [
   { key: '/ingresses', icon: <GlobalOutlined />, label: '入口管理' },
   { key: '/tasks', icon: <SyncOutlined />, label: '缓存任务' },
   { key: '/audit', icon: <AuditOutlined />, label: '审计日志' },
+  { key: '/p2p', icon: <ClusterOutlined />, label: 'P2P 拓扑' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];
 

@@ -358,3 +358,55 @@ export interface ErrorDetail {
 export interface ErrorResponse {
   error: ErrorDetail;
 }
+
+export interface P2PTopologyNode {
+  node_id: string;
+  name: string;
+  bandwidth_mbps: number;
+  is_small_bandwidth: boolean;
+  cache_hit_ratio: number;
+  status: string;
+}
+
+export interface P2PTopologyLink {
+  source: string;
+  target: string;
+  latency_ms: number;
+  success_rate: number;
+}
+
+export interface P2PTopology {
+  nodes: P2PTopologyNode[];
+  links: P2PTopologyLink[];
+}
+
+export interface GlobalConfig {
+  small_bandwidth: {
+    enabled: boolean;
+    threshold_mbps: number;
+  };
+  p2p: {
+    enabled: boolean;
+    discovery_interval_sec: number;
+    max_peers: number;
+    bandwidth_limit_mbps: number;
+  };
+  prefetch: {
+    enabled: boolean;
+    night_mode: {
+      start: string;
+      end: string;
+      bandwidth_limit_mbps: number;
+    };
+    day_mode: {
+      bandwidth_limit_mbps: number;
+      min_priority: number;
+    };
+  };
+  origin_fetch: {
+    bandwidth_percent: number;
+    max_concurrent: number;
+    timeout_sec: number;
+    priority: string[];
+  };
+}
