@@ -26,6 +26,7 @@ type Server struct {
 	client       *http.Client
 	conn         *net.UDPConn
 	stopCh       chan struct{}
+	geoCache     sync.Map
 }
 
 // NewServer creates a DNS adapter server.
@@ -217,9 +218,13 @@ func (s *Server) handleQuery(clientAddr *net.UDPAddr, query []byte) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 
+		clientIP := clientAddr.IP.String()
+		clientRegion := s.resolveRegion(clientIP)
+
 		resp, err := s.dispatchResolve(ctx, models.DispatchRequest{
 			Client: models.ClientInfo{
-				IP: clientAddr.IP.String(),
+				IP:     clientIP,
+				Region: clientRegion,
 			},
 			Resource: models.ResourceInfo{
 				Type: "object",
@@ -407,9 +412,37 @@ func extractIP(endpoint string) net.IP {
 		}
 		return net.ParseIP(host)
 	}
-	host, _, err := net.SplitHostPort(endpoint)
-	if err == nil {
-		return net.ParseIP(host)
+	return nil
+}
+
+type geoipResponse struct {
+	Region string `json:"region"`
+	Status string `json:"status"`
+}
+
+func (s *Server) resolveRegion(ip string) string {
+	if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+		return ""
 	}
-	return net.ParseIP(strings.Trim(endpoint, "[]"))
+	if v, ok := s.geoCache.Load(ip); ok {
+		return v.(string)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		"http://ip-api.com/json/"+ip+"?fields=region", nil)
+	if err != nil {
+		return ""
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	var gr geoipResponse
+	if json.NewDecoder(resp.Body).Decode(&gr) != nil || gr.Status != "success" {
+		return ""
+	}
+	s.geoCache.Store(ip, gr.Region)
+	return gr.Region
 }

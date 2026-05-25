@@ -109,9 +109,12 @@ func (s *PGStore) migrate(ctx context.Context) error {
 		maintain_until TIMESTAMPTZ,
 		last_seen_at TIMESTAMPTZ,
 		scores JSONB NOT NULL DEFAULT '{}',
+		node_token TEXT NOT NULL DEFAULT '',
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
+
+	ALTER TABLE nodes ADD COLUMN IF NOT EXISTS node_token TEXT NOT NULL DEFAULT '';
 
 	CREATE TABLE IF NOT EXISTS probe_results (
 		id BIGSERIAL PRIMARY KEY,
@@ -156,10 +159,13 @@ func (s *PGStore) migrate(ctx context.Context) error {
 		display_name TEXT NOT NULL DEFAULT '',
 		password_hash TEXT NOT NULL DEFAULT '',
 		refresh_token_hash TEXT NOT NULL DEFAULT '',
+		must_change_password BOOLEAN NOT NULL DEFAULT false,
 		roles JSONB NOT NULL DEFAULT '[]',
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
+
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false;
 
 	CREATE TABLE IF NOT EXISTS admin_policies (
 		policy_id TEXT PRIMARY KEY,
@@ -281,9 +287,9 @@ func (s *PGStore) CreateNode(ctx context.Context, req models.RegisterRequest, to
 	labelsJSON, _ := json.Marshal(models.NodeLabels{})
 
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO nodes (node_id, tenant_id, project_id, name, endpoints, region, isp, capabilities, status, weight, labels, scores, last_seen_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'REGISTERED', 100, $9, $10, NOW())
-	`, nodeID, req.TenantID, req.ProjectID, req.NodeName, endpointsJSON, req.Region, req.ISP, capsJSON, labelsJSON, scoresJSON)
+		INSERT INTO nodes (node_id, tenant_id, project_id, name, endpoints, region, isp, capabilities, status, weight, labels, scores, node_token, last_seen_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'REGISTERED', 100, $9, $10, $11, NOW())
+	`, nodeID, req.TenantID, req.ProjectID, req.NodeName, endpointsJSON, req.Region, req.ISP, capsJSON, labelsJSON, scoresJSON, token)
 	if err != nil {
 		return nil, fmt.Errorf("insert node: %w", err)
 	}
@@ -338,6 +344,16 @@ func (s *PGStore) GetNode(ctx context.Context, nodeID string) (*models.Node, err
 	})
 
 	return &n, nil
+}
+
+func (s *PGStore) GetNodeToken(ctx context.Context, nodeID string) (string, error) {
+	var token string
+	err := s.readPoolOrPrimary().QueryRow(ctx,
+		`SELECT node_token FROM nodes WHERE node_id=$1`, nodeID).Scan(&token)
+	if err != nil {
+		return "", fmt.Errorf("get node token: %w", err)
+	}
+	return token, nil
 }
 
 func (s *PGStore) ListActiveNodes(ctx context.Context) ([]*models.Node, error) {
@@ -890,6 +906,8 @@ func (r *RedisStore) UnrevokeNode(ctx context.Context, nodeID string) error {
 	return r.client.Del(ctx, "revoked:"+nodeID).Err()
 }
 
+func (r *RedisStore) Client() *redis.Client { return r.client }
+
 func (r *RedisStore) Close() error {
 	if r.cancel != nil {
 		r.cancel()
@@ -1016,8 +1034,8 @@ func (s *PGStore) CreateUser(ctx context.Context, user *models.User, passwordHas
 	user.UpdatedAt = time.Now()
 	rolesJSON, _ := json.Marshal(user.Roles)
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO users (user_id, tenant_id, email, display_name, password_hash, roles, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-		user.UserID, user.TenantID, user.Email, user.DisplayName, passwordHash, rolesJSON, user.CreatedAt, user.UpdatedAt)
+		`INSERT INTO users (user_id, tenant_id, email, display_name, password_hash, must_change_password, roles, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		user.UserID, user.TenantID, user.Email, user.DisplayName, passwordHash, user.MustChange, rolesJSON, user.CreatedAt, user.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("insert user: %w", err)
 	}
@@ -1029,8 +1047,8 @@ func (s *PGStore) GetUserByEmail(ctx context.Context, email string) (*models.Use
 	var passwordHash string
 	var rolesJSON []byte
 	err := s.readPoolOrPrimary().QueryRow(ctx,
-		`SELECT user_id, tenant_id, email, display_name, password_hash, roles, created_at, updated_at FROM users WHERE email=$1`, email).
-		Scan(&u.UserID, &u.TenantID, &u.Email, &u.DisplayName, &passwordHash, &rolesJSON, &u.CreatedAt, &u.UpdatedAt)
+		`SELECT user_id, tenant_id, email, display_name, password_hash, must_change_password, roles, created_at, updated_at FROM users WHERE email=$1`, email).
+		Scan(&u.UserID, &u.TenantID, &u.Email, &u.DisplayName, &passwordHash, &u.MustChange, &rolesJSON, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, "", fmt.Errorf("get user by email: %w", err)
 	}
@@ -1042,8 +1060,8 @@ func (s *PGStore) GetUser(ctx context.Context, userID string) (*models.User, err
 	u := &models.User{}
 	var rolesJSON []byte
 	err := s.readPoolOrPrimary().QueryRow(ctx,
-		`SELECT user_id, tenant_id, email, display_name, roles, created_at, updated_at FROM users WHERE user_id=$1`, userID).
-		Scan(&u.UserID, &u.TenantID, &u.Email, &u.DisplayName, &rolesJSON, &u.CreatedAt, &u.UpdatedAt)
+		`SELECT user_id, tenant_id, email, display_name, must_change_password, roles, created_at, updated_at FROM users WHERE user_id=$1`, userID).
+		Scan(&u.UserID, &u.TenantID, &u.Email, &u.DisplayName, &u.MustChange, &rolesJSON, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
@@ -1053,7 +1071,7 @@ func (s *PGStore) GetUser(ctx context.Context, userID string) (*models.User, err
 
 func (s *PGStore) ListUsers(ctx context.Context, tenantID string) ([]*models.User, error) {
 	rows, err := s.readPoolOrPrimary().Query(ctx,
-		`SELECT user_id, tenant_id, email, display_name, roles, created_at, updated_at FROM users WHERE tenant_id=$1 ORDER BY created_at DESC`, tenantID)
+		`SELECT user_id, tenant_id, email, display_name, must_change_password, roles, created_at, updated_at FROM users WHERE tenant_id=$1 ORDER BY created_at DESC`, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list users: %w", err)
 	}
@@ -1062,7 +1080,7 @@ func (s *PGStore) ListUsers(ctx context.Context, tenantID string) ([]*models.Use
 	for rows.Next() {
 		u := &models.User{}
 		var rolesJSON []byte
-		if err := rows.Scan(&u.UserID, &u.TenantID, &u.Email, &u.DisplayName, &rolesJSON, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.UserID, &u.TenantID, &u.Email, &u.DisplayName, &u.MustChange, &rolesJSON, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan user: %w", err)
 		}
 		json.Unmarshal(rolesJSON, &u.Roles)
@@ -1089,6 +1107,23 @@ func (s *PGStore) UpdateUserRefreshToken(ctx context.Context, userID, refreshHas
 		`UPDATE users SET refresh_token_hash=$2, updated_at=NOW() WHERE user_id=$1`,
 		userID, refreshHash)
 	return err
+}
+
+func (s *PGStore) UpdateUserPassword(ctx context.Context, userID, newPasswordHash string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE users SET password_hash=$2, must_change_password=false, updated_at=NOW() WHERE user_id=$1`,
+		userID, newPasswordHash)
+	return err
+}
+
+func (s *PGStore) GetUserPasswordHash(ctx context.Context, userID string) (string, error) {
+	var hash string
+	err := s.readPoolOrPrimary().QueryRow(ctx,
+		`SELECT password_hash FROM users WHERE user_id=$1`, userID).Scan(&hash)
+	if err != nil {
+		return "", fmt.Errorf("get user password hash: %w", err)
+	}
+	return hash, nil
 }
 
 func (s *PGStore) GetUserIDByRefreshToken(ctx context.Context, refreshHash string) (string, error) {

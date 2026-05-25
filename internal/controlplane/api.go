@@ -160,6 +160,7 @@ func NewAPI(registry *Registry, heartbeat *Heartbeat, scheduler *Scheduler, cfg 
 	r := chi.NewRouter()
 	rl := newRateLimiter(100000, 200000)
 	r.Use(middleware.Recoverer)
+	r.Use(WithTraceContext)
 	r.Use(withRateLimit(rl))
 	r.Use(withAPICOMmonHeaders)
 

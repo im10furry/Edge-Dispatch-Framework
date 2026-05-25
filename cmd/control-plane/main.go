@@ -79,6 +79,10 @@ func main() {
 	// Create API handler (returns http.Handler)
 	handler := controlplane.NewAPI(registry, heartbeat, scheduler, cfg)
 
+	// Tenant rate limiter (v0.8+)
+	tenantRL := controlplane.NewTenantRateLimiter(redisStore.Client())
+	handler = tenantRL.Middleware(handler)
+
 	// Create and start task executor for async cache operations (v0.7+)
 	taskExecutor := controlplane.NewTaskExecutor(pgStore, scheduler)
 
@@ -99,9 +103,41 @@ func main() {
 	ctxBg, cancelBg := context.WithCancel(context.Background())
 	defer cancelBg()
 
-	heartbeat.Start(ctxBg)
-	prober.Start(ctxBg)
-	go taskExecutor.Start(ctxBg)
+	leader := controlplane.NewLeaderElection(redisStore.Client())
+	go leader.Start(ctxBg)
+	time.Sleep(100 * time.Millisecond)
+
+	if leader.IsLeader() {
+		heartbeat.Start(ctxBg)
+		prober.Start(ctxBg)
+		go taskExecutor.Start(ctxBg)
+		slog.Info("running as leader — background tasks started")
+	} else {
+		slog.Info("running as follower — background tasks deferred to leader")
+	}
+
+	go func() {
+		wasLeader := leader.IsLeader()
+		for {
+			time.Sleep(1 * time.Second)
+			select {
+			case <-ctxBg.Done():
+				return
+			default:
+			}
+			isNow := leader.IsLeader()
+			if isNow && !wasLeader {
+				slog.Info("promoted to leader — starting background tasks")
+				heartbeat.Start(ctxBg)
+				prober.Start(ctxBg)
+				go taskExecutor.Start(ctxBg)
+			}
+			if !isNow && wasLeader {
+				slog.Info("demoted to follower — background tasks will be run by new leader")
+			}
+			wasLeader = isNow
+		}
+	}()
 
 	spaHandler := adminui.SPAHandler()
 
