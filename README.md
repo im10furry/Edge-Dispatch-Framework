@@ -23,6 +23,10 @@
 | **P2P Topology Visualization** | Real-time P2P node and link visualization in admin console | ✅ v0.7 |
 | **Global Config Management** | Centralized bandwidth, P2P, prefetch, and origin fetch config via admin UI | ✅ v0.7 |
 | **Brotli Compression** | Brotli (br) compression on edge agents alongside gzip for better compression ratio | ✅ v0.7 |
+| **Control Plane HA** | Redis-based leader election with automatic failover for multi-instance deployment | ✅ v0.8 |
+| **Multi-Tenant Rate Limiting** | Per-tenant request rate limiting using Redis atomic counters | ✅ v0.8 |
+| **GeoDNS** | Client-region-aware DNS resolution via GeoIP lookup for nearest-edge routing | ✅ v0.8 |
+| **Distributed Tracing** | Trace ID and span ID propagation across all services for end-to-end request tracking | ✅ v0.8 |
 | **HTTP/3 / QUIC** | Next-gen UDP-based transport | ✅ v0.6 |
 | **Small Bandwidth Optimization** | Bandwidth-aware scheduling, P2P peer fetch, smart prefetch, rate limiting, local config UI | ✅ v0.6 |
 | **Content Prewarming** | Push content keys to all edge nodes proactively via admin dashboard | ✅ v0.6 |
@@ -644,7 +648,7 @@ make stress-gateway
 - [x] **v0.5** — Prometheus Metrics, Hot Key TTL Cleanup, Bug Fixes (v0.1~v0.3)
 - [x] **v0.6** — HTTP/3 QUIC + Helm Chart + 小带宽优化 + P2P + 智能预取 + Admin UI + IPv6
 - [x] **v0.7** — React 管理控制台整合 + 缓存清除 + Dashboard 时序图表 + P2P 拓扑可视化 + 全局配置管理 + Brotli 压缩
-- [ ] **v0.8** — 分布式追踪 + GeoDNS + 多租户限流 + 控制面 HA
+- [x] **v0.8** — 控制面 HA (Redis 选主) + 多租户限流 + GeoDNS + 分布式追踪
 
 ## Contributing
 

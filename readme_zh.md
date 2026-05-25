@@ -621,7 +621,7 @@ make stress-gateway
 - [x] **v0.5** — Prometheus 指标、热键 TTL 清理、Bug 修复（v0.1~v0.3）
 - [x] **v0.6** — HTTP/3 QUIC、Helm Chart 部署
 - [x] **v0.7** — React 管理控制台整合 + 缓存清除 + Dashboard 时序图表 + P2P 拓扑可视化 + 全局配置管理 + Brotli 压缩
-- [ ] **v0.8** — 分布式追踪 + GeoDNS + 多租户限流 + 控制面 HA
+- [x] **v0.8** — 控制面 HA (Redis 选主) + 多租户限流 + GeoDNS + 分布式追踪
 
 ## 贡献
 

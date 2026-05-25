@@ -42,7 +42,7 @@ internal/               # 核心库（不可导出）
   autotls/              # 自动 TLS 证书生成
   config/               # 环境变量配置
   contentindex/         # Bloom Filter + 热内容索引
-  controlplane/         # 控制面核心（含 task_executor）
+  controlplane/         # 控制面核心（含 task_executor, leader, tenant_ratelimit, trace）
   dns/                  # DNS 服务器
   edgeagent/            # 边缘节点核心（含 brotli 压缩）
   gateway/              # 网关反代
@@ -175,6 +175,7 @@ if err := store.Upsert(ctx, data); err != nil {
 | v0.5 | ✅ 基本完成 | HTTP/3 QUIC 已实现（build tag `quic`）、Helm Chart 已实现 |
 | v0.6 | ✅ 完成 | 小带宽优化 + P2P + 智能预取 + Admin UI + Helm Chart + QUIC 客户端已完成 |
 | v0.7 | ✅ 完成 | 缓存清除 + Dashboard 时序图表 + P2P 拓扑可视化 + 全局配置管理 + Brotli 压缩 |
+| v0.8 | ✅ 完成 | Leader 选举 + 多租户限流 + GeoDNS + 分布式追踪 |
 
 ## 已知 Bug（需优先修复）
 
