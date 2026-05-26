@@ -85,6 +85,13 @@ type Scheduler struct {
 	cfg          *config.ControlPlaneConfig
 	tunnelMgr    TunnelManager
 	streamStrat  *streaming.StreamingStrategy
+	redis        RedisConfigStore
+}
+
+// RedisConfigStore is the interface for persisting global config.
+type RedisConfigStore interface {
+	SaveGlobalConfig(ctx context.Context, data []byte) error
+	LoadGlobalConfig(ctx context.Context) ([]byte, error)
 }
 
 // TunnelManager interface for checking tunnel connectivity.
@@ -110,6 +117,11 @@ func (s *Scheduler) SetContentIndex(ci ContentIndexLookup) {
 // SetTunnelManager sets the tunnel manager for NAT node support (v0.3).
 func (s *Scheduler) SetTunnelManager(tm TunnelManager) {
 	s.tunnelMgr = tm
+}
+
+// SetRedis stores the Redis config backend for persistence (v0.9+).
+func (s *Scheduler) SetRedis(r RedisConfigStore) {
+	s.redis = r
 }
 
 // SetStreamingStrategy sets the streaming strategy for chunk-aware scoring (v0.4).

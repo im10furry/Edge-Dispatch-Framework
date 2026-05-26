@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -21,7 +23,27 @@ import (
 	"github.com/darkinno/edge-dispatch-framework/internal/tracing"
 )
 
+var (
+	Version   = "dev"
+	Commit    = "unknown"
+	BuildDate = "unknown"
+)
+
 func main() {
+	showVersion := flag.Bool("version", false, "print version and exit")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("edge-dispatch control-plane v%s (commit %s, built %s)\n", Version, Commit, BuildDate)
+		return
+	}
+
+	for _, arg := range os.Args[1:] {
+		if arg == "-v" || arg == "--version" {
+			fmt.Printf("edge-dispatch control-plane v%s (commit %s, built %s)\n", Version, Commit, BuildDate)
+			return
+		}
+	}
 	debug.SetGCPercent(80)
 	debug.SetMemoryLimit(1 << 30)
 
@@ -84,6 +106,7 @@ func main() {
 	defer ciStore.Close()
 	heartbeat.SetContentStore(ciStore)
 	scheduler.SetContentIndex(ciStore.Index())
+	scheduler.SetRedis(redisStore)
 
 	// Load existing content index data into memory
 	if err := ciStore.LoadAll(ctx); err != nil {
@@ -112,6 +135,10 @@ func main() {
 
 	// Create API handler
 	apiHandler := controlplane.NewAPI(registry, heartbeat, scheduler, cfg)
+
+	// Set health checker for structured health endpoint (v0.9+)
+	apiHandler.SetHealthChecker(&store.CombinedHealthChecker{PG: pgStore, Redis: redisStore})
+
 	handler := http.Handler(apiHandler)
 
 	// Start policy sync from DB (v0.9+)

@@ -28,13 +28,20 @@ import (
 const maxJSONBodySize = 32 << 10
 
 type API struct {
-	registry  *Registry
-	heartbeat *Heartbeat
-	scheduler *Scheduler
-	policy    *Policy
-	cfg       *config.ControlPlaneConfig
-	metrics   *apiMetrics
-	router    chi.Router
+	registry      *Registry
+	heartbeat     *Heartbeat
+	scheduler     *Scheduler
+	policy        *Policy
+	cfg           *config.ControlPlaneConfig
+	metrics       *apiMetrics
+	router        chi.Router
+	healthChecker HealthChecker
+}
+
+// HealthChecker checks backend dependencies.
+type HealthChecker interface {
+	CheckPG(ctx context.Context) error
+	CheckRedis(ctx context.Context) error
 }
 
 // ServeHTTP implements http.Handler.
@@ -50,6 +57,11 @@ func (a *API) GetPolicy() *Policy {
 // StartPolicySync begins periodic policy loading from the database.
 func (a *API) StartPolicySync(ctx context.Context, pg *store.PGStore) {
 	go StartPolicySyncLoop(ctx, a.policy, pg, 30*time.Second)
+}
+
+// SetHealthChecker sets the health checker for dependency status.
+func (a *API) SetHealthChecker(hc HealthChecker) {
+	a.healthChecker = hc
 }
 
 type apiMetrics struct {
@@ -521,9 +533,27 @@ func escapeResourcePath(key string) string {
 }
 
 func (a *API) handleHealthz(w http.ResponseWriter, r *http.Request) {
-	a.writeJSON(w, http.StatusOK, map[string]string{
-		"status": "ok",
-		"time":   time.Now().UTC().Format(time.RFC3339),
+	status := "ok"
+	pgStatus := "ok"
+	redisStatus := "ok"
+
+	if a.healthChecker != nil {
+		if err := a.healthChecker.CheckPG(r.Context()); err != nil {
+			pgStatus = fmt.Sprintf("error: %v", err)
+			status = "degraded"
+		}
+		if err := a.healthChecker.CheckRedis(r.Context()); err != nil {
+			redisStatus = fmt.Sprintf("error: %v", err)
+			status = "degraded"
+		}
+	}
+
+	a.writeJSON(w, http.StatusOK, map[string]any{
+		"status":    status,
+		"time":      time.Now().UTC().Format(time.RFC3339),
+		"version":   "0.9.0",
+		"pg":        pgStatus,
+		"redis":     redisStatus,
 	})
 }
 

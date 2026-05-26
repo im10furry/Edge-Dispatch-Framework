@@ -589,6 +589,11 @@ func (s *PGStore) PoolStat() pgxpool.Stat {
 	return *s.pool.Stat()
 }
 
+// CheckPG verifies PostgreSQL connectivity.
+func (s *PGStore) CheckPG(ctx context.Context) error {
+	return s.pool.Ping(ctx)
+}
+
 func (s *PGStore) Close() {
 	s.pool.Close()
 	if s.readPool != nil {
@@ -907,6 +912,7 @@ func (r *RedisStore) UnrevokeNode(ctx context.Context, nodeID string) error {
 }
 
 const settingsKey = "edf:admin:settings"
+const globalConfigKey = "edf:global:config"
 
 // SaveSettings persists admin settings to Redis.
 func (r *RedisStore) SaveSettings(ctx context.Context, data []byte) error {
@@ -923,6 +929,42 @@ func (r *RedisStore) LoadSettings(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 	return val, nil
+}
+
+// SaveGlobalConfig persists the global dispatch config to Redis.
+func (r *RedisStore) SaveGlobalConfig(ctx context.Context, data []byte) error {
+	return r.client.Set(ctx, globalConfigKey, data, 0).Err()
+}
+
+// LoadGlobalConfig loads the global dispatch config from Redis.
+func (r *RedisStore) LoadGlobalConfig(ctx context.Context) ([]byte, error) {
+	val, err := r.client.Get(ctx, globalConfigKey).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return val, nil
+}
+
+// CheckRedis verifies Redis connectivity.
+func (r *RedisStore) CheckRedis(ctx context.Context) error {
+	return r.client.Ping(ctx).Err()
+}
+
+// CombinedHealthChecker checks both PG and Redis dependencies.
+type CombinedHealthChecker struct {
+	PG    *PGStore
+	Redis *RedisStore
+}
+
+func (c *CombinedHealthChecker) CheckPG(ctx context.Context) error {
+	return c.PG.CheckPG(ctx)
+}
+
+func (c *CombinedHealthChecker) CheckRedis(ctx context.Context) error {
+	return c.Redis.CheckRedis(ctx)
 }
 
 func (r *RedisStore) Client() *redis.Client { return r.client }

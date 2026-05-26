@@ -103,6 +103,7 @@ func NewAdminAPI(pg *store.PGStore, redis *store.RedisStore, registry *Registry,
 	// Protected routes (JWT required)
 	r.Group(func(r chi.Router) {
 		r.Use(jwt.Middleware)
+		r.Use(a.ipAllowlistMiddleware)
 
 		r.Post("/logout", a.handleLogout)
 		r.Get("/me", a.handleMe)
@@ -1467,6 +1468,7 @@ func (a *AdminAPI) handleUpdateSettings(w http.ResponseWriter, r *http.Request) 
 	a.cfg.GrafanaURL = settings.GrafanaURL
 	a.cfg.PrometheusURL = settings.PrometheusURL
 	a.cfg.LokiURL = settings.LokiURL
+	a.cfg.IPAllowlist = settings.IPAllowlist
 
 	a.audit(r, models.AuditActionPolicyUpdate, "settings", "global", "", "success")
 	a.writeJSON(w, http.StatusOK, settings)
@@ -1499,6 +1501,28 @@ func (a *AdminAPI) writeError(w http.ResponseWriter, status int, code, message s
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	w.Write(b)
+}
+
+// ipAllowlistMiddleware enforces the IP allowlist on admin API routes.
+func (a *AdminAPI) ipAllowlistMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		allowlist := a.cfg.IPAllowlist
+		if len(allowlist) == 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		clientIP := clientIP(r)
+		for _, allowed := range allowlist {
+			if clientIP == allowed {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		slog.Warn("admin API access denied by IP allowlist", "remote_ip", clientIP)
+		a.writeError(w, http.StatusForbidden, "FORBIDDEN", "access denied by IP allowlist")
+	})
 }
 
 func (a *AdminAPI) audit(r *http.Request, action models.AuditAction, resourceType, resourceID, before, result string) {

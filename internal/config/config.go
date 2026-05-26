@@ -326,7 +326,7 @@ type AdminAPIConfig struct {
 	AdminAccessKey     string
 	JWTSecret          string
 	JWTExpirySeconds   int
-	SessionStoreType   string // "memory" or "redis"
+	SessionStoreType   string
 	EnableMultiTenancy bool
 	EnableOIDC         bool
 	OIDCProviderURL    string
@@ -336,6 +336,7 @@ type AdminAPIConfig struct {
 	GrafanaURL         string
 	PrometheusURL      string
 	LokiURL            string
+	IPAllowlist        []string
 }
 
 func getEnv(key, defaultVal string) string {

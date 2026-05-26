@@ -134,9 +134,6 @@ func (s *Scheduler) handleAdminUpdateConfig(w http.ResponseWriter, r *http.Reque
 		s.cfg.SmallBandwidthOptimization.SmallBandwidthThreshold = cfg.SmallBandwidth.Threshold
 	}
 	s.cfg.SmallBandwidthOptimization.P2PEnabled = cfg.P2P.Enabled
-	if cfg.P2P.MaxPeers > 0 {
-		s.cfg.SmallBandwidthOptimization.PrefetchEnabled = true
-	}
 	s.cfg.SmallBandwidthOptimization.PrefetchEnabled = cfg.Prefetch.Enabled
 
 	slog.Info("global config updated via admin API",
@@ -153,7 +150,51 @@ func (s *Scheduler) handleAdminUpdateConfig(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Scheduler) handleAdminApplyConfig(w http.ResponseWriter, r *http.Request) {
-	slog.Info("global config applied via admin API — changes take effect immediately")
+	cfg := GlobalConfig{
+		SmallBandwidth: SmallBandwidthConfig{
+			Enabled:   s.cfg.SmallBandwidthOptimization.Enabled,
+			Threshold: s.cfg.SmallBandwidthOptimization.SmallBandwidthThreshold,
+		},
+		P2P: P2PConfig{
+			Enabled:              s.cfg.SmallBandwidthOptimization.P2PEnabled,
+			DiscoveryIntervalSec: 60,
+			MaxPeers:             10,
+			BandwidthLimitMbps:   20,
+		},
+		Prefetch: PrefetchConfig{
+			Enabled: s.cfg.SmallBandwidthOptimization.PrefetchEnabled,
+			NightMode: NightModeConfig{
+				Start:              "01:00",
+				End:                "07:00",
+				BandwidthLimitMbps: int64(s.cfg.SmallBandwidthOptimization.PrefetchBandwidthLimit),
+			},
+			DayMode: DayModeConfig{
+				BandwidthLimitMbps: int64(s.cfg.SmallBandwidthOptimization.PrefetchBandwidthLimit),
+				MinPriority:        8,
+			},
+		},
+		OriginFetch: OriginFetchConfig{
+			BandwidthPercent: 80,
+			MaxConcurrent:    5,
+			TimeoutSec:       30,
+			Priority:         []string{"p2p", "origin"},
+		},
+	}
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		slog.Error("failed to marshal global config", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if s.redis != nil {
+		if err := s.redis.SaveGlobalConfig(r.Context(), data); err != nil {
+			slog.Warn("failed to persist global config to redis", "err", err)
+		}
+	}
+
+	slog.Info("global config applied via admin API — persisted to Redis")
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]string{"status": "applied", "message": "Configuration applied to all nodes"}); err != nil {
 		slog.Warn("encode config apply response", "err", err)

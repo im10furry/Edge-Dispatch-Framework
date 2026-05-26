@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/darkinno/edge-dispatch-framework/internal/models"
 	"github.com/redis/go-redis/v9"
@@ -31,16 +32,39 @@ const (
 var (
 	rateLimitScript = redis.NewScript(`
 		local key = KEYS[1]
-		local burst = tonumber(ARGV[1])
+		local rate = tonumber(ARGV[1])
+		local burst = tonumber(ARGV[2])
+		local now = tonumber(ARGV[3])
 
-		local current = redis.call("INCR", key)
-		if current == 1 then
-			redis.call("EXPIRE", key, 1)
+		-- Get current state
+		local tokens = tonumber(redis.call("HGET", key, "tokens"))
+		local last_refill = tonumber(redis.call("HGET", key, "last_refill"))
+
+		if tokens == nil then
+			tokens = burst
 		end
-		if current > burst then
-			return 0
+		if last_refill == nil then
+			last_refill = now
 		end
-		return 1
+
+		-- Refill tokens based on elapsed time
+		local elapsed = now - last_refill
+		if elapsed > 0 then
+			local refill = elapsed * rate / 1000.0
+			tokens = math.min(burst, tokens + refill)
+			last_refill = now
+		end
+
+		if tokens >= 1 then
+			tokens = tokens - 1
+			redis.call("HSET", key, "tokens", tokens, "last_refill", last_refill)
+			redis.call("EXPIRE", key, 10)
+			return 1
+		end
+
+		redis.call("HSET", key, "tokens", tokens, "last_refill", last_refill)
+		redis.call("EXPIRE", key, 10)
+		return 0
 	`)
 )
 
@@ -67,10 +91,11 @@ func (trl *TenantRateLimiter) getLimit(tenantID string) (reqPerSec, burst int) {
 }
 
 func (trl *TenantRateLimiter) Allow(ctx context.Context, tenantID string) bool {
-	_, burst := trl.getLimit(tenantID)
+	reqPerSec, burst := trl.getLimit(tenantID)
 	key := fmt.Sprintf("rl:tenant:%s", tenantID)
+	nowMs := time.Now().UnixMilli()
 
-	val, err := rateLimitScript.Run(ctx, trl.rdb, []string{key}, burst).Result()
+	val, err := rateLimitScript.Run(ctx, trl.rdb, []string{key}, reqPerSec, burst, nowMs).Result()
 	if err != nil {
 		slog.Warn("rate limiter redis error", "tenant", tenantID, "err", err)
 		return true

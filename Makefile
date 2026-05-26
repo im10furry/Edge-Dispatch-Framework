@@ -1,24 +1,29 @@
 .PHONY: build run clean test docker-up docker-down docker-build docker-cp-up docker-cp-down docker-cp-up-full docker-edge-up docker-edge-down docker-edge-up-full ui-build ui-copy ui-dev ui-clean
 
+VERSION = 0.9.0
+COMMIT  = $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+DATE    = $(shell git log -1 --format=%cd --date=short 2>/dev/null || echo unknown)
+LDFLAGS = -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildDate=$(DATE)
+
 UI_DIR    = ui
 UI_DIST   = $(UI_DIR)/dist
 EMBED_DIR = internal/controlplane/adminui/webui
 
 build: ui-copy
-	go build -o bin/control-plane ./cmd/control-plane
-	go build -o bin/edge-agent ./cmd/edge-agent
-	go build -o bin/origin ./cmd/origin
-	go build -o bin/stress ./cmd/stress
-	go build -o bin/dns-adapter ./cmd/dns-adapter
-	go build -o bin/gateway ./cmd/gateway
+	go build -ldflags "$(LDFLAGS)" -o bin/control-plane ./cmd/control-plane
+	go build -ldflags "$(LDFLAGS)" -o bin/edge-agent ./cmd/edge-agent
+	go build -ldflags "$(LDFLAGS)" -o bin/origin ./cmd/origin
+	go build -ldflags "$(LDFLAGS)" -o bin/stress ./cmd/stress
+	go build -ldflags "$(LDFLAGS)" -o bin/dns-adapter ./cmd/dns-adapter
+	go build -ldflags "$(LDFLAGS)" -o bin/gateway ./cmd/gateway
 
 build-quic: ui-copy
-	go build -tags quic -o bin/control-plane ./cmd/control-plane
-	go build -tags quic -o bin/edge-agent ./cmd/edge-agent
-	go build -tags quic -o bin/origin ./cmd/origin
-	go build -tags quic -o bin/stress ./cmd/stress
-	go build -tags quic -o bin/dns-adapter ./cmd/dns-adapter
-	go build -tags quic -o bin/gateway ./cmd/gateway
+	go build -tags quic -ldflags "$(LDFLAGS)" -o bin/control-plane ./cmd/control-plane
+	go build -tags quic -ldflags "$(LDFLAGS)" -o bin/edge-agent ./cmd/edge-agent
+	go build -tags quic -ldflags "$(LDFLAGS)" -o bin/origin ./cmd/origin
+	go build -tags quic -ldflags "$(LDFLAGS)" -o bin/stress ./cmd/stress
+	go build -tags quic -ldflags "$(LDFLAGS)" -o bin/dns-adapter ./cmd/dns-adapter
+	go build -tags quic -ldflags "$(LDFLAGS)" -o bin/gateway ./cmd/gateway
 
 run-cp: build
 	./bin/control-plane
