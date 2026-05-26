@@ -143,6 +143,32 @@ func (s *Scheduler) handleAdminUpdateConfig(w http.ResponseWriter, r *http.Reque
 		"prefetch_enabled", cfg.Prefetch.Enabled,
 	)
 
+	// Persist to Redis
+	if s.redis != nil {
+		persistCfg := GlobalConfig{
+			SmallBandwidth: SmallBandwidthConfig{
+				Enabled:   cfg.SmallBandwidth.Enabled,
+				Threshold: cfg.SmallBandwidth.Threshold,
+			},
+			P2P: P2PConfig{
+				Enabled:              cfg.P2P.Enabled,
+				DiscoveryIntervalSec: cfg.P2P.DiscoveryIntervalSec,
+				MaxPeers:             cfg.P2P.MaxPeers,
+				BandwidthLimitMbps:   cfg.P2P.BandwidthLimitMbps,
+			},
+			Prefetch: PrefetchConfig{
+				Enabled:   cfg.Prefetch.Enabled,
+				NightMode: cfg.Prefetch.NightMode,
+				DayMode:   cfg.Prefetch.DayMode,
+			},
+			OriginFetch: cfg.OriginFetch,
+		}
+		data, _ := json.Marshal(persistCfg)
+		if err := s.redis.SaveGlobalConfig(r.Context(), data); err != nil {
+			slog.Warn("failed to persist global config to redis", "err", err)
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
 		slog.Warn("encode config update response", "err", err)
