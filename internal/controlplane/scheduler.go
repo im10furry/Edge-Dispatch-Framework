@@ -67,8 +67,14 @@ var requestSeq atomic.Uint64
 
 var filteredPool = sync.Pool{
 	New: func() any {
-		s := make([]*models.Node, 0, 64)
+		s := make([]*models.Node, 0, 128)
 		return &s
+	},
+}
+
+var heapPool = sync.Pool{
+	New: func() any {
+		return &scoredHeap{nodes: make([]scoredNode, 0, 16)}
 	},
 }
 
@@ -126,7 +132,6 @@ func (s *Scheduler) Resolve(ctx context.Context, req models.DispatchRequest) (*m
 
 	rKey := req.Resource.Key
 
-	var streamKey string
 	var hotNodes, bloomNodes map[string]bool
 	var streamNodes map[string]bool
 
@@ -134,7 +139,7 @@ func (s *Scheduler) Resolve(ctx context.Context, req models.DispatchRequest) (*m
 		hotNodes, bloomNodes = s.contentIndex.FindNodesWithKey(rKey)
 	}
 	if s.streamStrat != nil && rKey != "" {
-		streamKey, _, _ = streaming.InferStreamFromChunkKey(rKey)
+		streamKey, _, _ := streaming.InferStreamFromChunkKey(rKey)
 		if streamKey != "" {
 			streamNodes = s.streamStrat.FindNodesWithStream(streamKey)
 		}
@@ -149,7 +154,12 @@ func (s *Scheduler) Resolve(ctx context.Context, req models.DispatchRequest) (*m
 	}
 
 	maxCandidates := s.cfg.MaxCandidates
-	h := &scoredHeap{max: maxCandidates}
+
+	// Reuse heap from pool
+	h := heapPool.Get().(*scoredHeap)
+	h.nodes = h.nodes[:0]
+	h.max = maxCandidates
+
 	for _, n := range filtered {
 		sn := scoredNode{node: n, score: s.scoreKeyFast(n, req.Client, rKey, hotNodes, bloomNodes, streamNodes)}
 		if n.Capabilities.InboundReachable && len(n.Endpoints) > 0 {
@@ -159,6 +169,11 @@ func (s *Scheduler) Resolve(ctx context.Context, req models.DispatchRequest) (*m
 	}
 
 	scored := h.sorted()
+
+	// Return heap to pool
+	h.nodes = h.nodes[:0]
+	heapPool.Put(h)
+
 	candidates := make([]models.Candidate, 0, len(scored))
 	for i := len(scored) - 1; i >= 0; i-- {
 		sn := scored[i]
@@ -213,8 +228,9 @@ func (s *Scheduler) scoreKey(node *models.Node, client models.ClientInfo, resour
 }
 
 func (s *Scheduler) scoreKeyFast(node *models.Node, client models.ClientInfo, resourceKey string, hotNodes, bloomNodes, streamNodes map[string]bool) float64 {
-	score := 0.0
+	var score float64
 
+	// Region/ISP match
 	if node.Region == client.Region && client.Region != "" {
 		score += 30.0
 	}
@@ -222,23 +238,23 @@ func (s *Scheduler) scoreKeyFast(node *models.Node, client models.ClientInfo, re
 		score += 20.0
 	}
 
-	score += node.Scores.ReachableScore * 0.3
-	score += node.Scores.HealthScore * 0.2
-	score -= node.Scores.RiskScore * 0.5
+	// Health scores — weighted sum (avoids multiple branches)
+	score += node.Scores.ReachableScore*0.3 + node.Scores.HealthScore*0.2 - node.Scores.RiskScore*0.5
 
+	// Tunnel penalty
 	if node.Capabilities.TunnelRequired {
 		score -= 15.0
 	}
 
+	// Content-aware scoring
 	if resourceKey != "" {
-		if hotNodes != nil || bloomNodes != nil {
-			if hotNodes[node.NodeID] {
-				score += s.cfg.ContentIndex.HotContentAwareWeight
-			} else if bloomNodes[node.NodeID] {
-				score += s.cfg.ContentIndex.ContentAwareWeight
-			}
+		nodeID := node.NodeID
+		if hotNodes[nodeID] {
+			score += s.cfg.ContentIndex.HotContentAwareWeight
+		} else if bloomNodes[nodeID] {
+			score += s.cfg.ContentIndex.ContentAwareWeight
 		} else if s.contentIndex != nil {
-			isHot, likelyCached := s.contentIndex.IsCached(node.NodeID, resourceKey)
+			isHot, likelyCached := s.contentIndex.IsCached(nodeID, resourceKey)
 			if isHot {
 				score += s.cfg.ContentIndex.HotContentAwareWeight
 			} else if likelyCached {
@@ -246,60 +262,45 @@ func (s *Scheduler) scoreKeyFast(node *models.Node, client models.ClientInfo, re
 			}
 		}
 
-		if streamNodes != nil {
-			if streamNodes[node.NodeID] {
-				score += 20.0
-			}
+		if streamNodes[nodeID] {
+			score += 20.0
 		} else if s.streamStrat != nil {
-			score += s.streamStrat.StreamScore(node.NodeID, resourceKey)
+			score += s.streamStrat.StreamScore(nodeID, resourceKey)
 		}
 	}
 
-	// Small bandwidth optimization: bandwidth-aware scoring (v0.6+)
-	score = s.scoreBandwidth(node, score, hotNodes, bloomNodes)
+	// Bandwidth scoring — inline for hot path
+	if s.cfg != nil && s.cfg.SmallBandwidthOptimization.Enabled {
+		bw := node.Capabilities.MaxUplinkMbps
+		if bw > 0 {
+			bwScore := float64(bw) * 0.2 // /100*20 = *0.2
+			if bwScore > 20.0 {
+				bwScore = 20.0
+			}
+			score += bwScore
+
+			// Congestion penalty
+			if node.Capabilities.CurrentEgressMbps > float64(bw)*0.8 {
+				score -= 15.0
+			}
+
+			// Small bandwidth + cached content bonus
+			if bw < s.cfg.SmallBandwidthOptimization.SmallBandwidthThreshold {
+				if hotNodes[node.NodeID] || bloomNodes[node.NodeID] {
+					score += 30.0
+				}
+			}
+		}
+
+		// Shield node bonus
+		if node.Capabilities.ShieldMode {
+			score += 20.0
+		}
+	}
 
 	if score < 0 {
 		return 0
 	}
-	return score
-}
-
-func (s *Scheduler) scoreBandwidth(node *models.Node, score float64, hotNodes, bloomNodes map[string]bool) float64 {
-	if s.cfg == nil {
-		return score
-	}
-	sb := s.cfg.SmallBandwidthOptimization
-	if !sb.Enabled {
-		return score
-	}
-
-	if node.Capabilities.MaxUplinkMbps <= 0 {
-		return score
-	}
-
-	bandwidthScore := float64(node.Capabilities.MaxUplinkMbps) / 100.0 * 20.0
-	if bandwidthScore > 20.0 {
-		bandwidthScore = 20.0
-	}
-	score += bandwidthScore
-
-	if node.Capabilities.CurrentEgressMbps > float64(node.Capabilities.MaxUplinkMbps)*0.8 {
-		score -= 15.0
-	}
-
-	if node.Capabilities.MaxUplinkMbps < sb.SmallBandwidthThreshold {
-		if hotNodes != nil && hotNodes[node.NodeID] {
-			score += 30.0
-		} else if bloomNodes != nil && bloomNodes[node.NodeID] {
-			score += 30.0
-		}
-	}
-
-	// Shield node bonus: prioritize origin-shield nodes
-	if node.Capabilities.ShieldMode {
-		score += 20.0
-	}
-
 	return score
 }
 
@@ -312,27 +313,21 @@ func (s *Scheduler) filter(ctx context.Context, nodes []*models.Node) []*models.
 			continue
 		}
 
-		isPublic := n.Capabilities.InboundReachable
-		isNAT := n.Capabilities.TunnelRequired
-
-		if isPublic {
-			if n.Scores.ReachableScore < 10.0 {
-				continue
+		if n.Capabilities.InboundReachable {
+			if n.Scores.ReachableScore >= 10.0 {
+				filtered = append(filtered, n)
 			}
-			filtered = append(filtered, n)
-		} else if isNAT && s.tunnelMgr != nil {
+		} else if n.Capabilities.TunnelRequired && s.tunnelMgr != nil {
 			if s.tunnelMgr.IsConnected(n.NodeID) {
 				filtered = append(filtered, n)
 			}
 		}
 	}
 
-	result := make([]*models.Node, len(filtered))
-	copy(result, filtered)
-	*filteredPtr = filtered
+	*filteredPtr = filtered[:0]
 	filteredPool.Put(filteredPtr)
 
-	return result
+	return filtered
 }
 
 func (s *Scheduler) filterForSmallBandwidth(nodes []*models.Node, resourceKey string) []*models.Node {
@@ -342,26 +337,31 @@ func (s *Scheduler) filterForSmallBandwidth(nodes []*models.Node, resourceKey st
 	}
 	threshold := sb.SmallBandwidthThreshold
 
-	filtered := make([]*models.Node, 0, len(nodes))
-	for _, n := range nodes {
-		if n.Capabilities.MaxUplinkMbps > 0 && n.Capabilities.MaxUplinkMbps < threshold {
+	n := 0
+	for _, node := range nodes {
+		if node.Capabilities.MaxUplinkMbps > 0 && node.Capabilities.MaxUplinkMbps < threshold {
 			if resourceKey == "" || s.contentIndex == nil {
-				filtered = append(filtered, n)
+				nodes[n] = node
+				n++
 				continue
 			}
-			isHot, likelyCached := s.contentIndex.IsCached(n.NodeID, resourceKey)
-			e := n.Capabilities.CurrentEgressMbps
-			cap := float64(n.Capabilities.MaxUplinkMbps)
+			isHot, likelyCached := s.contentIndex.IsCached(node.NodeID, resourceKey)
 			if isHot || likelyCached {
-				filtered = append(filtered, n)
-			} else if cap > 0 && e/cap < 0.5 {
-				filtered = append(filtered, n)
+				nodes[n] = node
+				n++
+			} else {
+				cap := float64(node.Capabilities.MaxUplinkMbps)
+				if cap > 0 && node.Capabilities.CurrentEgressMbps/cap < 0.5 {
+					nodes[n] = node
+					n++
+				}
 			}
 			continue
 		}
-		filtered = append(filtered, n)
+		nodes[n] = node
+		n++
 	}
-	return filtered
+	return nodes[:n]
 }
 
 func sanitizeResourceKey(key string) string {
