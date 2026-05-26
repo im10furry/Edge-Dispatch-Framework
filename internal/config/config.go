@@ -34,6 +34,10 @@ type GatewayConfig struct {
 	WriteTimeout    time.Duration
 	IdleTimeout     time.Duration
 	Quic            QuicConfig
+	// WAF configuration (v0.9+)
+	WAFEnabled           bool
+	WAFRequestBodyLimit  int64
+	WAFResponseBodyAccess bool
 }
 
 // SmallBandwidthConfig holds small bandwidth optimization configuration (v0.6+).
@@ -69,6 +73,11 @@ type ControlPlaneConfig struct {
 	Admin AdminAPIConfig
 	// Small bandwidth optimization (v0.6+)
 	SmallBandwidthOptimization SmallBandwidthConfig
+	// OpenTelemetry tracing (v0.9+)
+	OTELEnabled      bool
+	OTELPEndpoint    string
+	OTELServiceName  string
+	OTELSampleRate   float64
 }
 
 // EdgeAgentConfig holds edge agent specific configuration.
@@ -218,6 +227,11 @@ func LoadControlPlane() *ControlPlaneConfig {
 			PrometheusURL:      getEnv("CP_ADMIN_PROMETHEUS_URL", ""),
 			LokiURL:            getEnv("CP_ADMIN_LOKI_URL", ""),
 		},
+		// OpenTelemetry (v0.9+)
+		OTELEnabled:     boolEnv("CP_OTEL_ENABLED", false),
+		OTELPEndpoint:   getEnv("CP_OTEL_ENDPOINT", "localhost:4317"),
+		OTELServiceName: getEnv("CP_OTEL_SERVICE_NAME", "edf-control-plane"),
+		OTELSampleRate:  floatEnv("CP_OTEL_SAMPLE_RATE", 1.0),
 	}
 	cfg.warnDefaults()
 	return cfg
@@ -286,6 +300,10 @@ func LoadGateway() *GatewayConfig {
 			Enabled:    boolEnv("GW_QUIC_ENABLED", false),
 			ListenAddr: getEnv("GW_QUIC_LISTEN_ADDR", ":9443"),
 		},
+		// WAF (v0.9+)
+		WAFEnabled:           boolEnv("GW_WAF_ENABLED", false),
+		WAFRequestBodyLimit:  int64(intEnv("GW_WAF_BODY_LIMIT", 131072)),
+		WAFResponseBodyAccess: boolEnv("GW_WAF_RESPONSE_BODY", false),
 	}
 	cfg.warnDefaults()
 	return cfg

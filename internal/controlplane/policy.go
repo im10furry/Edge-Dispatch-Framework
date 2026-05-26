@@ -1,6 +1,15 @@
 package controlplane
 
-import "sync/atomic"
+import (
+	"context"
+	"encoding/json"
+	"log/slog"
+	"sync/atomic"
+	"time"
+
+	"github.com/darkinno/edge-dispatch-framework/internal/models"
+	"github.com/darkinno/edge-dispatch-framework/internal/store"
+)
 
 type policyData struct {
 	blockedIPs   map[string]bool
@@ -66,6 +75,64 @@ func (p *Policy) UnblockNode(nodeID string) {
 	}
 	delete(newData.blockedNodes, nodeID)
 	p.data.Store(newData)
+}
+
+type blockPolicyContent struct {
+	BlockedIPs   []string `json:"blocked_ips"`
+	BlockedNodes []string `json:"blocked_nodes"`
+}
+
+// SyncFromDB loads published block policies from the database and updates the in-memory state.
+func (p *Policy) SyncFromDB(ctx context.Context, pg *store.PGStore) {
+	policies, err := pg.ListAdminPolicies(ctx, "", "")
+	if err != nil {
+		slog.Warn("policy: failed to load policies from DB", "err", err)
+		return
+	}
+
+	blockedIPs := make(map[string]bool)
+	blockedNodes := make(map[string]bool)
+
+	for _, pol := range policies {
+		if !pol.IsPublished || pol.Type != models.AdminPolicyTypeBlock {
+			continue
+		}
+		var content blockPolicyContent
+		if err := json.Unmarshal(pol.Content, &content); err != nil {
+			slog.Warn("policy: failed to parse block policy content", "policy_id", pol.PolicyID, "err", err)
+			continue
+		}
+		for _, ip := range content.BlockedIPs {
+			blockedIPs[ip] = true
+		}
+		for _, nodeID := range content.BlockedNodes {
+			blockedNodes[nodeID] = true
+		}
+	}
+
+	p.data.Store(&policyData{
+		blockedIPs:   blockedIPs,
+		blockedNodes: blockedNodes,
+	})
+
+	slog.Info("policy: synced from DB", "blocked_ips", len(blockedIPs), "blocked_nodes", len(blockedNodes))
+}
+
+// StartPolicySyncLoop periodically syncs policies from DB.
+func StartPolicySyncLoop(ctx context.Context, policy *Policy, pg *store.PGStore, interval time.Duration) {
+	policy.SyncFromDB(ctx, pg)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			policy.SyncFromDB(ctx, pg)
+		}
+	}
 }
 
 func copyMap(src map[string]bool) map[string]bool {

@@ -1425,6 +1425,16 @@ func (a *AdminAPI) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 		PrometheusURL:    a.cfg.PrometheusURL,
 		LokiURL:          a.cfg.LokiURL,
 	}
+
+	if stored, err := a.redis.LoadSettings(r.Context()); err != nil {
+		slog.Warn("failed to load settings from redis", "err", err)
+	} else if stored != nil {
+		var persisted models.AdminConfig
+		if json.Unmarshal(stored, &persisted) == nil {
+			settings = persisted
+		}
+	}
+
 	a.writeJSON(w, http.StatusOK, settings)
 }
 
@@ -1439,7 +1449,26 @@ func (a *AdminAPI) handleUpdateSettings(w http.ResponseWriter, r *http.Request) 
 		a.writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 		return
 	}
-	// Settings are read-only from config; just acknowledge
+
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		a.writeError(w, http.StatusInternalServerError, "ENCODE_FAILED", "failed to encode settings")
+		return
+	}
+
+	if err := a.redis.SaveSettings(r.Context(), settingsJSON); err != nil {
+		slog.Warn("failed to persist settings to redis", "err", err)
+	}
+
+	a.cfg.EnableOIDC = settings.OIDCEnabled
+	a.cfg.OIDCProviderURL = settings.OIDCProviderURL
+	a.cfg.OIDCClientID = settings.OIDCClientID
+	a.cfg.EnableLocalAuth = settings.LocalAuthEnabled
+	a.cfg.GrafanaURL = settings.GrafanaURL
+	a.cfg.PrometheusURL = settings.PrometheusURL
+	a.cfg.LokiURL = settings.LokiURL
+
+	a.audit(r, models.AuditActionPolicyUpdate, "settings", "global", "", "success")
 	a.writeJSON(w, http.StatusOK, settings)
 }
 

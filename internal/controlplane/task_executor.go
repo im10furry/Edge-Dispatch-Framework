@@ -193,7 +193,119 @@ func (te *TaskExecutor) executePurge(ctx context.Context, task *models.Task) {
 }
 
 func (te *TaskExecutor) executePrewarm(ctx context.Context, task *models.Task) {
-	te.markComplete(ctx, task.TaskID, models.TaskStatusCompleted, nil, 100, 0)
+	var params models.TaskParams
+	if err := json.Unmarshal(task.Params, &params); err != nil {
+		slog.Warn("task executor: invalid prewarm params", "task_id", task.TaskID, "err", err)
+		te.markComplete(ctx, task.TaskID, models.TaskStatusFailed, nil, 0, 0)
+		return
+	}
+
+	keys := make([]string, 0)
+	if params.ObjectKey != "" {
+		keys = append(keys, params.ObjectKey)
+	}
+	if len(keys) == 0 {
+		slog.Warn("task executor: prewarm task has no keys", "task_id", task.TaskID)
+		te.markComplete(ctx, task.TaskID, models.TaskStatusFailed, nil, 0, 0)
+		return
+	}
+
+	targetNodes := te.resolveTargetNodes(ctx, params)
+	if len(targetNodes) == 0 {
+		slog.Warn("task executor: no target nodes for prewarm", "task_id", task.TaskID)
+		te.markComplete(ctx, task.TaskID, models.TaskStatusFailed, nil, 0, 0)
+		return
+	}
+
+	te.pg.UpdateTaskStatus(ctx, task.TaskID, models.TaskStatusRunning, nil, 0, len(targetNodes))
+
+	concurrency := params.Concurrency
+	if concurrency <= 0 {
+		concurrency = 5
+	}
+
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	doneNodes := 0
+
+	for _, node := range targetNodes {
+		wg.Add(1)
+		go func(n *models.Node) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			if len(n.Endpoints) == 0 {
+				return
+			}
+
+			endpoint := n.Endpoints[0].URL()
+			body, _ := json.Marshal(map[string][]string{"keys": keys})
+
+			reqCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+			defer cancel()
+
+			httpReq, err := http.NewRequestWithContext(reqCtx, "POST",
+				endpoint+"/internal/push/prewarm", bytes.NewReader(body))
+			if err != nil {
+				slog.Warn("task executor: prewarm request build failed", "node", n.NodeID, "err", err)
+				return
+			}
+			httpReq.Header.Set("Content-Type", "application/json")
+
+			client := &http.Client{Timeout: 120 * time.Second}
+			resp, err := client.Do(httpReq)
+			if err != nil {
+				slog.Warn("task executor: prewarm request failed", "node", n.NodeID, "err", err)
+				return
+			}
+			defer resp.Body.Close()
+
+			bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 65536))
+			if err != nil {
+				slog.Warn("task executor: prewarm read response failed", "node", n.NodeID, "err", err)
+				return
+			}
+
+			var respData struct {
+				Total   int `json:"total"`
+				Results []struct {
+					Key    string `json:"key"`
+					Status string `json:"status"`
+					Size   int64  `json:"size,omitempty"`
+					Error  string `json:"error,omitempty"`
+				} `json:"results"`
+			}
+			if err := json.Unmarshal(bodyBytes, &respData); err != nil {
+				slog.Warn("task executor: prewarm parse response failed", "node", n.NodeID, "err", err)
+				return
+			}
+
+			mu.Lock()
+			doneNodes++
+			mu.Unlock()
+
+			slog.Info("task executor: prewarm node complete",
+				"task_id", task.TaskID,
+				"node", n.NodeID,
+				"keys", respData.Total,
+			)
+		}(node)
+	}
+	wg.Wait()
+
+	progress := 100
+	if len(targetNodes) > 0 {
+		progress = doneNodes * 100 / len(targetNodes)
+	}
+
+	result, _ := json.Marshal(map[string]any{
+		"keys_prewarmed": len(keys),
+		"nodes_prewarmed": doneNodes,
+		"total_nodes":     len(targetNodes),
+	})
+	te.markComplete(ctx, task.TaskID, models.TaskStatusCompleted, result, progress, doneNodes)
 }
 
 func (te *TaskExecutor) resolveTargetNodes(ctx context.Context, params models.TaskParams) []*models.Node {

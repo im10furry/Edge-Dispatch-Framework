@@ -906,6 +906,25 @@ func (r *RedisStore) UnrevokeNode(ctx context.Context, nodeID string) error {
 	return r.client.Del(ctx, "revoked:"+nodeID).Err()
 }
 
+const settingsKey = "edf:admin:settings"
+
+// SaveSettings persists admin settings to Redis.
+func (r *RedisStore) SaveSettings(ctx context.Context, data []byte) error {
+	return r.client.Set(ctx, settingsKey, data, 0).Err()
+}
+
+// LoadSettings loads admin settings from Redis. Returns nil if not found.
+func (r *RedisStore) LoadSettings(ctx context.Context) ([]byte, error) {
+	val, err := r.client.Get(ctx, settingsKey).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return val, nil
+}
+
 func (r *RedisStore) Client() *redis.Client { return r.client }
 
 func (r *RedisStore) Close() error {

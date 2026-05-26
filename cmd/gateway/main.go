@@ -10,6 +10,7 @@ import (
 
 	"github.com/darkinno/edge-dispatch-framework/internal/config"
 	"github.com/darkinno/edge-dispatch-framework/internal/gateway"
+	"github.com/darkinno/edge-dispatch-framework/internal/waf"
 )
 
 func main() {
@@ -45,6 +46,22 @@ func main() {
 		resolver,
 		logger,
 	)
+
+	// Initialize WAF if enabled (v0.9+)
+	if cfg.WAFEnabled {
+		wafCfg := waf.Config{
+			Enabled:            true,
+			RequestBodyLimit:   cfg.WAFRequestBodyLimit,
+			ResponseBodyAccess: cfg.WAFResponseBodyAccess,
+		}
+		wafInstance, err := waf.New(wafCfg)
+		if err != nil {
+			slog.Error("failed to initialize WAF", "err", err)
+			os.Exit(1)
+		}
+		gw.SetWAFMiddleware(waf.Middleware(wafInstance, 403))
+		slog.Info("WAF enabled")
+	}
 
 	if err := gw.Start(); err != nil {
 		slog.Error("failed to start gateway", "err", err)

@@ -59,6 +59,7 @@ type Gateway struct {
 	cancel       context.CancelFunc
 	promMetrics  *gwMetrics
 	transport    *http.Transport
+	wafMiddleware func(http.Handler) http.Handler
 }
 
 type gwMetrics struct {
@@ -119,6 +120,11 @@ func New(cfg Config, resolver NodeResolver, logger *slog.Logger) *Gateway {
 	return gw
 }
 
+// SetWAFMiddleware sets the WAF middleware to be applied to the HTTP handler chain.
+func (g *Gateway) SetWAFMiddleware(mw func(http.Handler) http.Handler) {
+	g.wafMiddleware = mw
+}
+
 // Start starts the gateway.
 func (g *Gateway) Start() error {
 	// Start tunnel server
@@ -132,6 +138,9 @@ func (g *Gateway) Start() error {
 	mux.HandleFunc("/healthz", g.handleHealth)
 	mux.HandleFunc("/metrics", g.handleMetrics)
 	handler := withRecovery(withSecurityHeaders(mux))
+	if g.wafMiddleware != nil {
+		handler = g.wafMiddleware(handler)
+	}
 
 	g.server = &http.Server{
 		Addr:         g.cfg.ListenAddr,
@@ -462,6 +471,11 @@ func withSecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		if r.TLS != nil {
+			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/darkinno/edge-dispatch-framework/internal/controlplane"
 	"github.com/darkinno/edge-dispatch-framework/internal/controlplane/adminui"
 	"github.com/darkinno/edge-dispatch-framework/internal/store"
+	"github.com/darkinno/edge-dispatch-framework/internal/tracing"
 )
 
 func main() {
@@ -32,6 +33,19 @@ func main() {
 	cfg := config.LoadControlPlane()
 
 	ctx := context.Background()
+
+	// Initialize OpenTelemetry tracing (v0.9+)
+	otelShutdown, err := tracing.Init(ctx, tracing.Config{
+		Enabled:      cfg.OTELEnabled,
+		OTLPEndpoint: cfg.OTELPEndpoint,
+		ServiceName:  cfg.OTELServiceName,
+		SampleRate:   cfg.OTELSampleRate,
+	})
+	if err != nil {
+		logger.Error("failed to initialize tracing", "error", err)
+		os.Exit(1)
+	}
+	defer otelShutdown(ctx)
 
 	// Initialize PostgreSQL store
 	logger.Info("connecting to postgres", "host", sanitizePGURL(cfg.PGURL))
@@ -76,13 +90,6 @@ func main() {
 		logger.Warn("failed to load content index from db", "error", err)
 	}
 
-	// Create API handler (returns http.Handler)
-	handler := controlplane.NewAPI(registry, heartbeat, scheduler, cfg)
-
-	// Tenant rate limiter (v0.8+)
-	tenantRL := controlplane.NewTenantRateLimiter(redisStore.Client())
-	handler = tenantRL.Middleware(handler)
-
 	// Create and start task executor for async cache operations (v0.7+)
 	taskExecutor := controlplane.NewTaskExecutor(pgStore, scheduler)
 
@@ -102,6 +109,17 @@ func main() {
 	// Start background tasks
 	ctxBg, cancelBg := context.WithCancel(context.Background())
 	defer cancelBg()
+
+	// Create API handler
+	apiHandler := controlplane.NewAPI(registry, heartbeat, scheduler, cfg)
+	handler := http.Handler(apiHandler)
+
+	// Start policy sync from DB (v0.9+)
+	apiHandler.StartPolicySync(ctxBg, pgStore)
+
+	// Tenant rate limiter (v0.8+)
+	tenantRL := controlplane.NewTenantRateLimiter(redisStore.Client())
+	handler = tenantRL.Middleware(handler)
 
 	leader := controlplane.NewLeaderElection(redisStore.Client())
 	go leader.Start(ctxBg)

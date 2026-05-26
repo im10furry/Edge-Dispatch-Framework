@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Edge Dispatch Framework API",
-    "version": "0.5.0",
-    "description": "Edge Dispatch Framework — 开源边缘分发/加速框架，通过中心调度将用户请求分配到最优边缘节点，支持 302 重定向、DNS/GSLB、网关反代等多种接入方式。"
+    "version": "0.9.0",
+    "description": "Edge Dispatch Framework — 开源边缘分发/加速框架，通过中心调度将用户请求分配到最优边缘节点，支持 302 重定向、DNS/GSLB、网关反代等多种接入方式。v0.9: Security & Hardening — WAF (Coraza), OpenTelemetry, Policy DB Sync, P2P Discovery."
   },
   "servers": [
     { "url": "http://localhost:8080", "description": "本地 Docker 演示环境" }

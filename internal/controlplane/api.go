@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"github.com/darkinno/edge-dispatch-framework/internal/config"
 	"github.com/darkinno/edge-dispatch-framework/internal/metrics"
 	"github.com/darkinno/edge-dispatch-framework/internal/models"
+	"github.com/darkinno/edge-dispatch-framework/internal/store"
 )
 
 const maxJSONBodySize = 32 << 10
@@ -32,6 +34,22 @@ type API struct {
 	policy    *Policy
 	cfg       *config.ControlPlaneConfig
 	metrics   *apiMetrics
+	router    chi.Router
+}
+
+// ServeHTTP implements http.Handler.
+func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	a.router.ServeHTTP(w, r)
+}
+
+// GetPolicy returns the in-memory policy engine for external sync.
+func (a *API) GetPolicy() *Policy {
+	return a.policy
+}
+
+// StartPolicySync begins periodic policy loading from the database.
+func (a *API) StartPolicySync(ctx context.Context, pg *store.PGStore) {
+	go StartPolicySyncLoop(ctx, a.policy, pg, 30*time.Second)
 }
 
 type apiMetrics struct {
@@ -105,8 +123,30 @@ func withAPICOMmonHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'")
+		if r.TLS != nil {
+			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func deprecationMiddleware(message string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Deprecation", "true")
+			w.Header().Set("Sunset", "2026-12-31")
+			w.Header().Set("Link", `</internal/admin/v1>; rel="successor-version"`)
+			slog.Warn("deprecated admin route accessed",
+				"path", r.URL.Path,
+				"message", message,
+				"remote_addr", r.RemoteAddr,
+			)
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 type apiKeyAuth struct {
@@ -147,12 +187,13 @@ func (a *apiKeyAuth) middleware(next http.Handler) http.Handler {
 	})
 }
 
-func NewAPI(registry *Registry, heartbeat *Heartbeat, scheduler *Scheduler, cfg *config.ControlPlaneConfig) http.Handler {
+func NewAPI(registry *Registry, heartbeat *Heartbeat, scheduler *Scheduler, cfg *config.ControlPlaneConfig) *API {
+	policy := NewPolicy()
 	api := &API{
 		registry:  registry,
 		heartbeat: heartbeat,
 		scheduler: scheduler,
-		policy:    NewPolicy(),
+		policy:    policy,
 		cfg:       cfg,
 		metrics:   newAPIMetrics(),
 	}
@@ -183,18 +224,15 @@ func NewAPI(registry *Registry, heartbeat *Heartbeat, scheduler *Scheduler, cfg 
 		if admin != nil {
 			r.Route("/internal/admin/v1", func(r chi.Router) {
 				r.Use(admin.middleware)
+				r.Use(deprecationMiddleware("Use JWT-authenticated /internal/admin/v1/ endpoints instead"))
 				r.Post("/nodes/{nodeID}:disable", api.handleAdminDisableNode)
 				r.Post("/nodes/{nodeID}:enable", api.handleAdminEnableNode)
 				r.Post("/nodes/{nodeID}:revoke", api.handleAdminRevokeNode)
-				// Global config management (v0.6+)
 				r.Get("/config", api.scheduler.handleAdminGetConfig)
 				r.Put("/config", api.scheduler.handleAdminUpdateConfig)
 				r.Post("/config/apply", api.scheduler.handleAdminApplyConfig)
-				// P2P topology (v0.6+)
 				r.Get("/p2p/topology", api.scheduler.handleAdminP2PTopology)
-				// Dashboard (v0.6+)
 				r.Get("/dashboard", api.scheduler.handleAdminDashboard)
-				// Prewarm push (v0.6+)
 				r.Post("/tasks/prewarm", api.scheduler.handleAdminPrewarm)
 			})
 		}
@@ -202,7 +240,8 @@ func NewAPI(registry *Registry, heartbeat *Heartbeat, scheduler *Scheduler, cfg 
 	r.Get("/healthz", api.handleHealthz)
 	r.Get("/metrics", api.handleMetrics)
 
-	return r
+	api.router = r
+	return api
 }
 
 func newAPIMetrics() *apiMetrics {
