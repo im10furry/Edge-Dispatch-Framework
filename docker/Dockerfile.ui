@@ -1,0 +1,42 @@
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci
+COPY ui/ ./
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html/admin
+RUN cat > /etc/nginx/conf.d/default.conf <<'EOF'
+server {
+    listen 8080;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location /admin/ {
+        try_files $uri $uri/ /admin/index.html;
+    }
+
+    location /internal/ {
+        proxy_pass http://control-plane:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location /v1/ {
+        proxy_pass http://control-plane:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location /healthz {
+        proxy_pass http://control-plane:8080;
+        proxy_set_header Host $host;
+    }
+}
+EOF
+EXPOSE 8080

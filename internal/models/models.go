@@ -662,7 +662,7 @@ type DashboardMetrics struct {
 	OnlineNodes   int              `json:"online_nodes"`
 	OfflineNodes  int              `json:"offline_nodes"`
 	TotalNodes    int              `json:"total_nodes"`
-	RecentAlerts  []DashboardAlert `json:"recent_alerts,omitempty"`
+	RecentAlerts  []DashboardAlert `json:"recent_alerts"`
 }
 
 // DashboardAlert is an alert shown on the dashboard.

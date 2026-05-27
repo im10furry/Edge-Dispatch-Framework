@@ -55,6 +55,15 @@ services:
       redis:
         condition: service_healthy
 
+  ui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ui
+    ports:
+      - "3000:8080"
+    depends_on:
+      - control-plane
+
   # Gateway - Unified reverse proxy with tunnel support (v0.3)
   gateway:
     build:

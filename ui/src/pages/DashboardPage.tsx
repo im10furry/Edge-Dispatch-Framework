@@ -351,15 +351,15 @@ export default function DashboardPage() {
             }
             style={{ height: 320 }}
           >
-            {metrics.recent_alerts.length === 0 ? (
+            {(metrics.recent_alerts ?? []).length === 0 ? (
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 220 }}>
                 <Text type="secondary">暂无告警</Text>
               </div>
             ) : (
               <Table
                 columns={alertColumns}
-                dataSource={metrics.recent_alerts}
-                rowKey={(r) => r.timestamp + r.node_id}
+                dataSource={metrics.recent_alerts ?? []}
+                rowKey={(r) => r.timestamp + (r.node_id ?? '')}
                 size="small"
                 pagination={false}
                 scroll={{ y: 220 }}
