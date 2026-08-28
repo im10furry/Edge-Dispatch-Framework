@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/darkinno/edge-dispatch-framework/internal/config"
-	"github.com/darkinno/edge-dispatch-framework/internal/models"
+	"github.com/im10furry/edge-dispatch-framework/internal/config"
+	"github.com/im10furry/edge-dispatch-framework/internal/models"
 )
 
 // mockCache implements CacheAccessor for testing.

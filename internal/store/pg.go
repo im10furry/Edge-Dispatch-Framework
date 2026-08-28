@@ -18,7 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/darkinno/edge-dispatch-framework/internal/models"
+	"github.com/im10furry/edge-dispatch-framework/internal/models"
 )
 
 type nodeCacheEntry struct {

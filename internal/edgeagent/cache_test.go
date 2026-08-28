@@ -9,8 +9,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/darkinno/edge-dispatch-framework/internal/auth"
-	"github.com/darkinno/edge-dispatch-framework/internal/config"
+	"github.com/im10furry/edge-dispatch-framework/internal/auth"
+	"github.com/im10furry/edge-dispatch-framework/internal/config"
 )
 
 func newTestCache(t *testing.T) (*Cache, func()) {

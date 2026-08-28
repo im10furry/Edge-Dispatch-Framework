@@ -1,4 +1,4 @@
-module github.com/darkinno/edge-dispatch-framework
+module github.com/im10furry/edge-dispatch-framework
 
 go 1.25.0
 

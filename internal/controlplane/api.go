@@ -19,10 +19,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/darkinno/edge-dispatch-framework/internal/config"
-	"github.com/darkinno/edge-dispatch-framework/internal/metrics"
-	"github.com/darkinno/edge-dispatch-framework/internal/models"
-	"github.com/darkinno/edge-dispatch-framework/internal/store"
+	"github.com/im10furry/edge-dispatch-framework/internal/config"
+	"github.com/im10furry/edge-dispatch-framework/internal/metrics"
+	"github.com/im10furry/edge-dispatch-framework/internal/models"
+	"github.com/im10furry/edge-dispatch-framework/internal/store"
 )
 
 const maxJSONBodySize = 32 << 10

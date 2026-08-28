@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/darkinno/edge-dispatch-framework/internal/config"
+	"github.com/im10furry/edge-dispatch-framework/internal/config"
 )
 
 func signAdmin(secret, ts, nonce, method, path string, body []byte) string {

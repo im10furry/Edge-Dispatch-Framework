@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/darkinno/edge-dispatch-framework/internal/models"
-	"github.com/darkinno/edge-dispatch-framework/internal/store"
+	"github.com/im10furry/edge-dispatch-framework/internal/models"
+	"github.com/im10furry/edge-dispatch-framework/internal/store"
 )
 
 type Registry struct {

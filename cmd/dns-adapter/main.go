@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/darkinno/edge-dispatch-framework/internal/config"
-	"github.com/darkinno/edge-dispatch-framework/internal/dns"
+	"github.com/im10furry/edge-dispatch-framework/internal/config"
+	"github.com/im10furry/edge-dispatch-framework/internal/dns"
 )
 
 func main() {

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/darkinno/edge-dispatch-framework/internal/models"
+	"github.com/im10furry/edge-dispatch-framework/internal/models"
 )
 
 type GlobalConfig struct {

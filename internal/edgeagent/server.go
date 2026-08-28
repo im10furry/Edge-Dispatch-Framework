@@ -20,11 +20,11 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
-	"github.com/darkinno/edge-dispatch-framework/internal/auth"
-	"github.com/darkinno/edge-dispatch-framework/internal/config"
-	"github.com/darkinno/edge-dispatch-framework/internal/metrics"
-	"github.com/darkinno/edge-dispatch-framework/internal/quic"
-	"github.com/darkinno/edge-dispatch-framework/internal/streaming"
+	"github.com/im10furry/edge-dispatch-framework/internal/auth"
+	"github.com/im10furry/edge-dispatch-framework/internal/config"
+	"github.com/im10furry/edge-dispatch-framework/internal/metrics"
+	"github.com/im10furry/edge-dispatch-framework/internal/quic"
+	"github.com/im10furry/edge-dispatch-framework/internal/streaming"
 )
 
 func extractClientIP(r *http.Request) string {

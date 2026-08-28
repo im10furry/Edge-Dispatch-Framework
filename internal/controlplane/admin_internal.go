@@ -19,8 +19,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/darkinno/edge-dispatch-framework/internal/config"
-	"github.com/darkinno/edge-dispatch-framework/internal/models"
+	"github.com/im10furry/edge-dispatch-framework/internal/config"
+	"github.com/im10furry/edge-dispatch-framework/internal/models"
 )
 
 type ctxKey int

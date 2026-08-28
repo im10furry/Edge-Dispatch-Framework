@@ -14,13 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/darkinno/edge-dispatch-framework/internal/auth"
-	"github.com/darkinno/edge-dispatch-framework/internal/config"
-	"github.com/darkinno/edge-dispatch-framework/internal/contentindex"
-	"github.com/darkinno/edge-dispatch-framework/internal/controlplane"
-	"github.com/darkinno/edge-dispatch-framework/internal/controlplane/adminui"
-	"github.com/darkinno/edge-dispatch-framework/internal/store"
-	"github.com/darkinno/edge-dispatch-framework/internal/tracing"
+	"github.com/im10furry/edge-dispatch-framework/internal/auth"
+	"github.com/im10furry/edge-dispatch-framework/internal/config"
+	"github.com/im10furry/edge-dispatch-framework/internal/contentindex"
+	"github.com/im10furry/edge-dispatch-framework/internal/controlplane"
+	"github.com/im10furry/edge-dispatch-framework/internal/controlplane/adminui"
+	"github.com/im10furry/edge-dispatch-framework/internal/store"
+	"github.com/im10furry/edge-dispatch-framework/internal/tracing"
 )
 
 var (

@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/darkinno/edge-dispatch-framework/internal/metrics"
-	"github.com/darkinno/edge-dispatch-framework/internal/quic"
-	"github.com/darkinno/edge-dispatch-framework/internal/tunnel"
+	"github.com/im10furry/edge-dispatch-framework/internal/metrics"
+	"github.com/im10furry/edge-dispatch-framework/internal/quic"
+	"github.com/im10furry/edge-dispatch-framework/internal/tunnel"
 )
 
 // Config holds gateway configuration.
