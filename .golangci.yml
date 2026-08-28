@@ -49,7 +49,7 @@ linters-settings:
   gofmt:
     simplify: true
   goimports:
-    local-prefixes: github.com/darkinno/edge-dispatch-framework
+    local-prefixes: github.com/im10furry/edge-dispatch-framework
   misspell:
     locale: US
   prealloc:

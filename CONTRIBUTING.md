@@ -22,7 +22,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/DarkInno/Edge-Dispatch-Framework.git
+git clone https://github.com/im10furry/Edge-Dispatch-Framework.git
 cd Edge-Dispatch-Framework
 
 # 安装依赖

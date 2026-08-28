@@ -8,7 +8,7 @@
 
 **Edge Dispatch Framework** 是一个开源边缘分发/加速框架，使用 Go 1.25 开发。核心功能是通过中心调度将用户请求分配到最优边缘节点，支持 302 重定向、DNS/GSLB、网关反代等多种接入方式。
 
-**模块路径**：`github.com/darkinno/edge-dispatch-framework`
+**模块路径**：`github.com/im10furry/edge-dispatch-framework`
 
 ## 技术栈
 

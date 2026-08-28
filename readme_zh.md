@@ -102,7 +102,7 @@ cd ui && npm run dev
 ### 一键启动
 
 ```bash
-git clone https://github.com/DarkInno/Edge-Dispatch-Framework.git
+git clone https://github.com/im10furry/Edge-Dispatch-Framework.git
 cd Edge-Dispatch-Framework
 
 # 启动全套服务（控制面 + 2 个边缘节点 + 网关 + 源站 + PG + Redis）
@@ -233,7 +233,7 @@ docker compose up -d
 在中心服务器上：
 
 ```bash
-git clone https://github.com/DarkInno/Edge-Dispatch-Framework.git
+git clone https://github.com/im10furry/Edge-Dispatch-Framework.git
 cd Edge-Dispatch-Framework
 
 # 创建 .env 配置
@@ -276,7 +276,7 @@ curl http://localhost:8080/healthz
 在**每台边缘服务器**上：
 
 ```bash
-git clone https://github.com/DarkInno/Edge-Dispatch-Framework.git
+git clone https://github.com/im10furry/Edge-Dispatch-Framework.git
 cd Edge-Dispatch-Framework
 
 # 创建 .env 配置
@@ -629,4 +629,4 @@ make stress-gateway
 
 ## License
 
-[MIT](LICENSE) © 2026 DarkInno
+[MIT](LICENSE) © 2026 im10furry

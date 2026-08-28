@@ -107,7 +107,7 @@ For quickly experiencing all features on a **single machine**.
 ### One-Click Start
 
 ```bash
-git clone https://github.com/DarkInno/Edge-Dispatch-Framework.git
+git clone https://github.com/im10furry/Edge-Dispatch-Framework.git
 cd Edge-Dispatch-Framework
 
 # Start all services (Control Plane + 2 Edge Nodes + Gateway + Origin + PG + Redis)
@@ -245,7 +245,7 @@ docker compose up -d
 On the central server:
 
 ```bash
-git clone https://github.com/DarkInno/Edge-Dispatch-Framework.git
+git clone https://github.com/im10furry/Edge-Dispatch-Framework.git
 cd Edge-Dispatch-Framework
 
 # Create .env configuration
@@ -290,7 +290,7 @@ Control Plane default ports:
 On **each edge server**:
 
 ```bash
-git clone https://github.com/DarkInno/Edge-Dispatch-Framework.git
+git clone https://github.com/im10furry/Edge-Dispatch-Framework.git
 cd Edge-Dispatch-Framework
 
 # Create .env configuration
@@ -656,4 +656,4 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 ## License
 
-[MIT](LICENSE) © 2026 DarkInno
+[MIT](LICENSE) © 2026 im10furry

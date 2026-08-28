@@ -10,9 +10,9 @@ keywords:
   - content-delivery
   - dispatch
   - streaming
-home: https://github.com/darkinno/edge-dispatch-framework
+home: https://github.com/im10furry/edge-dispatch-framework
 sources:
-  - https://github.com/darkinno/edge-dispatch-framework
+  - https://github.com/im10furry/edge-dispatch-framework
 maintainers:
-  - name: DarkInno
-    email: dev@darkinno.com
+  - name: im10furry
+    email: dev@im10furry.com

@@ -1,6 +1,6 @@
 # EDF Webmanager
 
-> **[Edge Dispatch Framework](https://github.com/DarkInno/Edge-Dispatch-Framework)** 的管理控制台 —— 一个开源边缘内容分发与加速框架，通过中心调度将用户请求分配到最优边缘节点，支持 302 重定向、DNS/GSLB、网关反代等多种接入方式。
+> **[Edge Dispatch Framework](https://github.com/im10furry/Edge-Dispatch-Framework)** 的管理控制台 —— 一个开源边缘内容分发与加速框架，通过中心调度将用户请求分配到最优边缘节点，支持 302 重定向、DNS/GSLB、网关反代等多种接入方式。
 
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
@@ -35,7 +35,7 @@
 ## 环境要求
 
 - Node.js >= 18
-- [EDF 后端](https://github.com/DarkInno/Edge-Dispatch-Framework)（Go）运行在 `localhost:8080`
+- [EDF 后端](https://github.com/im10furry/Edge-Dispatch-Framework)（Go）运行在 `localhost:8080`
 
 ## 快速开始
 
@@ -192,7 +192,7 @@ Webmanager 通过 EDF 控制面 API 进行交互。完整 API 规范见 [openapi
 
 ## 相关项目
 
-- [Edge Dispatch Framework](https://github.com/DarkInno/Edge-Dispatch-Framework) — 核心后端（Go）
+- [Edge Dispatch Framework](https://github.com/im10furry/Edge-Dispatch-Framework) — 核心后端（Go）
 
 ## 许可证
 

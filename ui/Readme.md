@@ -1,6 +1,6 @@
 # EDF Webmanager
 
-> Admin web console for **[Edge Dispatch Framework](https://github.com/DarkInno/Edge-Dispatch-Framework)** — an open-source edge content delivery and acceleration framework that routes user requests to the optimal edge node via centralized dispatch.
+> Admin web console for **[Edge Dispatch Framework](https://github.com/im10furry/Edge-Dispatch-Framework)** — an open-source edge content delivery and acceleration framework that routes user requests to the optimal edge node via centralized dispatch.
 
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
@@ -35,7 +35,7 @@
 ## Prerequisites
 
 - Node.js >= 18
-- The [EDF backend](https://github.com/DarkInno/Edge-Dispatch-Framework) (Go) running on `localhost:8080`
+- The [EDF backend](https://github.com/im10furry/Edge-Dispatch-Framework) (Go) running on `localhost:8080`
 
 ## Getting Started
 
@@ -192,7 +192,7 @@ The Webmanager interacts with the EDF Control Plane API. See [openapi.json](open
 
 ## Related Projects
 
-- [Edge Dispatch Framework](https://github.com/DarkInno/Edge-Dispatch-Framework) — The core backend (Go)
+- [Edge Dispatch Framework](https://github.com/im10furry/Edge-Dispatch-Framework) — The core backend (Go)
 
 ## License
 
