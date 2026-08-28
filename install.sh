@@ -10,7 +10,7 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
 EDF_VERSION="v0.6"
-EDF_REPO="https://github.com/DarkInno/Edge-Dispatch-Framework.git"
+EDF_REPO="https://github.com/im10furry/Edge-Dispatch-Framework.git"
 EDF_BASE="/opt/edge-dispatch"
 EDF_DATA="/data/edf"
 DOCKER_MODE=false
